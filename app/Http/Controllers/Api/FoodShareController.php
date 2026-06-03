@@ -19,14 +19,16 @@ class FoodShareController extends Controller
         $lat    = (float) $request->lat;
         $lng    = (float) $request->lng;
         $userId = $request->user()->id;
+        $radius = (float) ($request->radius ?? 5);
+        $radius = in_array($radius, [1, 2, 5, 10]) ? $radius : 5;
 
-        // Available shares within 5 km
+        // Available shares within chosen radius
         $nearby = FoodShare::with(['user:id,name'])
             ->where('status', 'available')
             ->where(function ($q) {
                 $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
             })
-            ->nearby($lat, $lng)
+            ->nearby($lat, $lng, $radius)
             ->get();
 
         // Reserved shares where the user is owner or reserved_by (no distance limit)

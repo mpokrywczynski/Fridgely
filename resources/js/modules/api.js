@@ -125,7 +125,7 @@ export const api = {
     },
 
     foodSharing: {
-        list:          (lat, lng) => api.get(`/food-sharing?lat=${lat}&lng=${lng}`),
+        list:          (lat, lng, radius = 5) => api.get(`/food-sharing?lat=${lat}&lng=${lng}&radius=${radius}`),
         my:            ()         => api.get('/food-sharing/my'),
         get:           (id)       => api.get(`/food-sharing/${id}`),
         create:        (d)        => api.post('/food-sharing', d),

@@ -35,12 +35,6 @@ jobs:
         env:
           NODE_ENV: production
 
-      - name: Generate setup.php with one-time token
-        run: |
-          TOKEN=$(openssl rand -hex 32)
-          echo "DEPLOY_TOKEN=$TOKEN" >> $GITHUB_ENV
-          sed "s/%%TOKEN%%/$TOKEN/" .github/setup-template.php > public/setup.php
-
       - name: Deploy via SFTP (lftp)
         run: |
           sudo apt-get install -y lftp -qq
@@ -69,20 +63,16 @@ jobs:
           bye
           "
 
-      - name: Run setup.php on server
+      - name: Run post-deploy setup
         run: |
-          echo "Triggering setup..."
-          HTTP_CODE=$(curl -s -o /tmp/setup_response.txt -w "%{http_code}" --max-time 60 \
-            "${{ secrets.APP_URL }}/setup.php?token=${{ env.DEPLOY_TOKEN }}")
-          RESPONSE=$(cat /tmp/setup_response.txt)
+          echo "Triggering deploy-run..."
+          HTTP_CODE=$(curl -s -o /tmp/deploy_response.txt -w "%{http_code}" --max-time 90 \
+            "${{ secrets.APP_URL }}/deploy-run?token=${{ secrets.DEPLOY_TOKEN }}")
+          RESPONSE=$(cat /tmp/deploy_response.txt)
           echo "HTTP status: $HTTP_CODE"
           echo "Response: $RESPONSE"
           if [ "$HTTP_CODE" != "200" ]; then
-            echo "::error::Setup script failed with HTTP $HTTP_CODE"
-            exit 1
-          fi
-          if echo "$RESPONSE" | grep -qi "Fatal\|Parse error\|Warning.*Fatal"; then
-            echo "::error::PHP error in setup script"
+            echo "::error::Deploy setup failed with HTTP $HTTP_CODE"
             exit 1
           fi
           echo "Deploy complete."

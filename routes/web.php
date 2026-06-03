@@ -1,10 +1,34 @@
 <?php
 
 use App\Http\Controllers\AdminPanelController;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
+});
+
+Route::get('/deploy-run', function (\Illuminate\Http\Request $request) {
+    $token = config('app.deploy_token');
+    if (!$token || $request->query('token') !== $token) {
+        abort(403, 'Forbidden');
+    }
+
+    $out = [];
+
+    Artisan::call('migrate', ['--force' => true]);
+    $out[] = 'migrate: ' . trim(Artisan::output());
+
+    Artisan::call('config:cache');
+    $out[] = 'config:cache: OK';
+
+    Artisan::call('route:cache');
+    $out[] = 'route:cache: OK';
+
+    Artisan::call('view:cache');
+    $out[] = 'view:cache: OK';
+
+    return response(implode("\n", $out), 200)->header('Content-Type', 'text/plain');
 });
 
 Route::get('/admin/login',  [AdminPanelController::class, 'loginForm'])->name('admin.login');

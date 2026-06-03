@@ -3,11 +3,13 @@ import { getUser } from './auth.js';
 
 let map = null;
 let markers = [];
+let radiusCircle = null;
 let myLocation = null;
 let fsContainer = null;
 let pollTimer = null;
 let pollShareId = null;
 let lastMessageId = 0;
+let currentRadius = 5;
 
 function startPolling(container, shareId) {
     stopPolling();
@@ -107,9 +109,16 @@ export async function renderFoodSharing(container) {
         <div style="padding:16px 20px 12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;flex-shrink:0">
             <div>
                 <h2 style="font-size:20px;font-weight:700">🤝 Oddam Jedzenie</h2>
-                <p style="color:var(--text-muted);font-size:13px">Produkty do oddania w promieniu 5 km</p>
+                <p style="color:var(--text-muted);font-size:13px">Produkty do oddania w pobliżu</p>
             </div>
-            <button class="btn btn--outline btn--sm" id="fs-my-btn">📋 Moje ogłoszenia</button>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <div id="fs-radius-picker" style="display:flex;gap:4px">
+                    ${[1,2,5,10].map(r => `
+                    <button class="fs-radius-btn btn btn--sm ${r === currentRadius ? 'btn--primary' : 'btn--outline'}"
+                        data-radius="${r}" style="padding:4px 10px;font-size:12px">${r} km</button>`).join('')}
+                </div>
+                <button class="btn btn--outline btn--sm" id="fs-my-btn">📋 Moje ogłoszenia</button>
+            </div>
         </div>
 
         <div id="fs-alert" style="padding:0 20px 8px;flex-shrink:0"></div>
@@ -164,8 +173,8 @@ async function initMap(container) {
         radius: 9, fillColor: '#3b82f6', color: '#fff', weight: 2, fillOpacity: 1,
     }).addTo(map).bindPopup('📍 Twoja lokalizacja');
 
-    L.circle([myLocation.lat, myLocation.lng], {
-        radius: 5000, color: '#3b82f6', fillColor: '#3b82f6',
+    radiusCircle = L.circle([myLocation.lat, myLocation.lng], {
+        radius: currentRadius * 1000, color: '#3b82f6', fillColor: '#3b82f6',
         fillOpacity: 0.04, weight: 1, dashArray: '4 4',
     }).addTo(map);
 
@@ -176,9 +185,12 @@ async function loadShares(container) {
     markers.forEach(m => m.remove());
     markers = [];
 
+    // aktualizuj kółko promienia na mapie
+    if (radiusCircle) radiusCircle.setRadius(currentRadius * 1000);
+
     let shares = [];
     try {
-        shares = await api.foodSharing.list(myLocation.lat, myLocation.lng);
+        shares = await api.foodSharing.list(myLocation.lat, myLocation.lng, currentRadius);
     } catch { return; }
 
     const user = getUser();
@@ -476,6 +488,26 @@ function bindThreadSendButtons(panel, container, shareId) {
 
 function bindFsPageEvents(container) {
     container.querySelector('#fs-my-btn')?.addEventListener('click', () => toggleMyPanel(container));
+
+    container.querySelectorAll('.fs-radius-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            currentRadius = parseInt(btn.dataset.radius);
+
+            // odśwież styl przycisków
+            container.querySelectorAll('.fs-radius-btn').forEach(b => {
+                b.classList.toggle('btn--primary', b === btn);
+                b.classList.toggle('btn--outline', b !== btn);
+            });
+
+            // dostosuj zoom mapy do promienia
+            if (map && myLocation) {
+                const zoomMap = { 1: 15, 2: 14, 5: 13, 10: 12 };
+                map.setView([myLocation.lat, myLocation.lng], zoomMap[currentRadius] ?? 13);
+            }
+
+            await loadShares(container);
+        });
+    });
 }
 
 async function toggleMyPanel(container) {

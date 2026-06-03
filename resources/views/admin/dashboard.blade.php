@@ -179,6 +179,54 @@ tr:hover td { background: #f9fafb; }
     </div>
 </div>
 
+{{-- ── Foodsharing ── --}}
+<div class="section-title">🤝 Foodsharing — Oddam Jedzenie</div>
+<div class="stats">
+    <div class="stat stat--green">
+        <div class="stat__val">{{ $stats['shares_given'] }}</div>
+        <div class="stat__lbl">Produkty oddane łącznie</div>
+    </div>
+    <div class="stat">
+        <div class="stat__val">{{ $stats['shares_week'] }}</div>
+        <div class="stat__lbl">Oddane w ostatnich 7 dniach</div>
+    </div>
+    <div class="stat stat--blue">
+        <div class="stat__val">{{ $stats['shares_active'] }}</div>
+        <div class="stat__lbl">Aktywne ogłoszenia</div>
+    </div>
+    <div class="stat">
+        <div class="stat__val">{{ $stats['shares_total'] }}</div>
+        <div class="stat__lbl">Ogłoszenia łącznie</div>
+    </div>
+</div>
+
+<div class="section" style="margin-top:12px">
+    <div class="section__hdr">Ostatnie ogłoszenia</div>
+    @if($recentShares->isEmpty())
+        <div class="empty">Brak ogłoszeń.</div>
+    @else
+    <table>
+        <thead><tr>
+            <th>Produkt</th><th>Użytkownik</th><th>Status</th><th>Data</th>
+        </tr></thead>
+        <tbody>
+        @foreach($recentShares as $share)
+        @php
+            $statusLabel = ['available' => '✅ Dostępne', 'reserved' => '⏳ Zarezerwowane', 'given' => '✓ Oddano', 'cancelled' => '✗ Anulowane'][$share->status] ?? $share->status;
+            $statusColor = ['available' => '#16a34a', 'reserved' => '#d97706', 'given' => '#6b7280', 'cancelled' => '#dc2626'][$share->status] ?? '#6b7280';
+        @endphp
+        <tr>
+            <td style="font-weight:600">{{ $share->name }}</td>
+            <td>{{ $share->user->name ?? '—' }}</td>
+            <td><span style="color:{{ $statusColor }};font-weight:600;font-size:12px">{{ $statusLabel }}</span></td>
+            <td style="color:#6b7280;font-size:12px">{{ $share->created_at->format('d.m.Y H:i') }}</td>
+        </tr>
+        @endforeach
+        </tbody>
+    </table>
+    @endif
+</div>
+
 {{-- ── Ostatnio zarejestrowani ── --}}
 <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
     <span>👤 Ostatnio zarejestrowani</span>

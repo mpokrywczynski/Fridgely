@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\CustomRecipe;
 use App\Models\Family;
+use App\Models\FoodShare;
 use App\Models\Product;
 use App\Models\ShoppingListItem;
 use App\Models\SupportMessage;
@@ -59,6 +60,10 @@ class AdminPanelController extends Controller
             'shopping_total'     => ShoppingListItem::count(),
             'messages_unread'    => SupportMessage::where('is_read', false)->count(),
             'messages_total'     => SupportMessage::count(),
+            'shares_active'      => FoodShare::whereIn('status', ['available', 'reserved'])->count(),
+            'shares_given'       => FoodShare::where('status', 'given')->count(),
+            'shares_total'       => FoodShare::count(),
+            'shares_week'        => FoodShare::where('status', 'given')->where('updated_at', '>=', $week)->count(),
         ];
 
         // Chart: rejestracje per dzień przez ostatnie 30 dni
@@ -75,12 +80,17 @@ class AdminPanelController extends Controller
             ->limit(10)
             ->get();
 
+        $recentShares = FoodShare::with(['user:id,name'])
+            ->orderByDesc('created_at')
+            ->limit(20)
+            ->get();
+
         $messages = SupportMessage::with(['user', 'replies'])
             ->orderByDesc('created_at')
             ->limit(50)
             ->get();
 
-        return view('admin.dashboard', compact('stats', 'chartData', 'recentUsers', 'messages'));
+        return view('admin.dashboard', compact('stats', 'chartData', 'recentUsers', 'messages', 'recentShares'));
     }
 
     public function users(Request $request)

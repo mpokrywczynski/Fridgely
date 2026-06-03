@@ -22,6 +22,9 @@ export async function renderStats(container, isPremium = false) {
 
         ${renderScoreSection(data)}
         ${renderSummaryCards(data)}
+        ${renderMomSection(data.mom)}
+        ${renderCo2Section(data.co2)}
+        ${renderTopWasted(data.top_wasted)}
         ${renderMonthlyChart(data.monthly)}
         ${renderBadges(data.badges)}
 
@@ -118,7 +121,108 @@ function statCard(icon, label, value, bg, color) {
     </div>`;
 }
 
-// ── Monthly chart ────────────────────────────────────────
+// ── Month-over-month ─────────────────────────────────────
+
+function renderMomSection(mom) {
+    if (!mom) return '';
+
+    const item = (label, icon, data, lowerIsBetter = false) => {
+        const pct  = data.pct;
+        const good = lowerIsBetter ? pct <= 0 : pct >= 0;
+        const arrow = pct > 0 ? '↑' : pct < 0 ? '↓' : '→';
+        const color = pct === 0 ? 'var(--text-muted)' : good ? '#16a34a' : '#dc2626';
+        const sign  = pct > 0 ? '+' : '';
+        return `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)">
+            <div style="display:flex;align-items:center;gap:10px">
+                <span style="font-size:20px">${icon}</span>
+                <div>
+                    <div style="font-size:13px;font-weight:600">${label}</div>
+                    <div style="font-size:11px;color:var(--text-muted)">${data.prev} w poprzednim → ${data.cur} w tym miesiącu</div>
+                </div>
+            </div>
+            <div style="font-size:18px;font-weight:800;color:${color};white-space:nowrap">
+                ${arrow} ${sign}${pct}%
+            </div>
+        </div>`;
+    };
+
+    return `
+    <div class="card">
+        <div class="card__header"><span class="card__title">📅 Miesiąc do miesiąca</span></div>
+        <div class="card__body" style="padding:0 24px">
+            ${item('Zużyte produkty', '✅', mom.consumed, false)}
+            ${item('Zmarnowane produkty', '🗑', mom.wasted, true)}
+            <div style="border-bottom:none">${item('Oddane sąsiadom', '🤝', mom.shared, false)}</div>
+        </div>
+    </div>`;
+}
+
+// ── CO2 ───────────────────────────────────────────────────
+
+function renderCo2Section(co2) {
+    if (!co2) return '';
+
+    const trees = Math.max(0, Math.floor(co2.net / 21));
+
+    return `
+    <div class="card">
+        <div class="card__header"><span class="card__title">🌍 Ślad węglowy (szacunkowy)</span></div>
+        <div class="card__body">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:${co2.net > 0 ? '16px' : '0'}">
+                <div style="text-align:center;padding:16px;background:#f0fdf4;border-radius:10px">
+                    <div style="font-size:28px;margin-bottom:4px">♻️</div>
+                    <div style="font-size:24px;font-weight:800;color:#16a34a">${co2.saved} kg</div>
+                    <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-top:4px">CO₂ zaoszczędzone</div>
+                </div>
+                <div style="text-align:center;padding:16px;background:#fff1f0;border-radius:10px">
+                    <div style="font-size:28px;margin-bottom:4px">💨</div>
+                    <div style="font-size:24px;font-weight:800;color:#dc2626">${co2.wasted} kg</div>
+                    <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-top:4px">CO₂ zmarnowane</div>
+                </div>
+                <div style="text-align:center;padding:16px;background:${co2.net >= 0 ? '#eff6ff' : '#fff7ed'};border-radius:10px">
+                    <div style="font-size:28px;margin-bottom:4px">${co2.net >= 0 ? '🌱' : '⚠️'}</div>
+                    <div style="font-size:24px;font-weight:800;color:${co2.net >= 0 ? '#2563eb' : '#d97706'}">${co2.net >= 0 ? '+' : ''}${co2.net} kg</div>
+                    <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-top:4px">Bilans CO₂</div>
+                </div>
+            </div>
+            ${trees > 0 ? `
+            <div style="padding:12px 16px;background:#f0fdf4;border-radius:8px;font-size:13px;color:#15803d;display:flex;align-items:center;gap:8px">
+                🌳 Twoje działania odpowiadają pochłonięciu CO₂ przez <strong>${trees} ${trees === 1 ? 'drzewo' : trees < 5 ? 'drzewa' : 'drzew'}</strong> w ciągu roku
+            </div>` : ''}
+            <div style="margin-top:10px;font-size:11px;color:var(--text-muted)">* Szacunek: ~0,5 kg CO₂e na produkt (średnia FAO)</div>
+        </div>
+    </div>`;
+}
+
+// ── Top zmarnowane kategorie ──────────────────────────────
+
+function renderTopWasted(categories) {
+    if (!categories?.length) return '';
+
+    const max = Math.max(1, ...categories.map(c => c.count));
+
+    const bars = categories.map(c => {
+        const pct = Math.round((c.count / max) * 100);
+        return `
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+            <div style="width:110px;font-size:12px;font-weight:600;color:var(--text);text-align:right;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                title="${escHtml(c.category)}">${escHtml(c.category)}</div>
+            <div style="flex:1;background:var(--border);border-radius:99px;height:10px;overflow:hidden">
+                <div style="width:${pct}%;height:100%;background:var(--danger);border-radius:99px;transition:width .5s ease"></div>
+            </div>
+            <div style="width:28px;font-size:12px;font-weight:700;color:var(--danger);flex-shrink:0">${c.count}</div>
+        </div>`;
+    }).join('');
+
+    return `
+    <div class="card">
+        <div class="card__header"><span class="card__title">🗑 Najczęściej marnowane kategorie</span></div>
+        <div class="card__body">${bars}</div>
+    </div>`;
+}
+
+// ── Monthly chart ─────────────────────────────────────────
 
 function renderMonthlyChart(monthly) {
     const maxVal = Math.max(1, ...monthly.map(m => m.consumed + m.wasted));

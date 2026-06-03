@@ -52,6 +52,9 @@ class StatsController extends Controller
             'streak_days'    => $streakDays,
             'money_saved'    => round($moneySaved, 2),
             'money_wasted'   => round($moneyWasted, 2),
+            'co2'            => $this->co2Stats($consumed, $wasted, $shared),
+            'top_wasted'     => $this->topWastedCategories($familyId),
+            'mom'            => $this->monthOverMonth($familyId, $familyUserIds),
             'monthly'        => $this->monthlyBreakdown($familyId, $familyUserIds),
             'badges'         => $this->badges($consumed, $wasted, $score, $streakDays, $shared),
         ]);
@@ -92,6 +95,60 @@ class StatsController extends Controller
         }
 
         return (int) Carbon::parse($lastWaste)->diffInDays(now());
+    }
+
+    private function co2Stats(int $consumed, int $wasted, int $shared): array
+    {
+        // ~0.5 kg CO2e per food item (FAO average across categories)
+        $perItem = 0.5;
+        return [
+            'saved'  => round(($consumed + $shared) * $perItem, 1),
+            'wasted' => round($wasted * $perItem, 1),
+            'net'    => round(($consumed + $shared - $wasted) * $perItem, 1),
+        ];
+    }
+
+    private function topWastedCategories(int $familyId): array
+    {
+        return Product::where('family_id', $familyId)
+            ->where('is_wasted', true)
+            ->whereNotNull('category')
+            ->where('category', '!=', '')
+            ->selectRaw('category, COUNT(*) as count')
+            ->groupBy('category')
+            ->orderByDesc('count')
+            ->limit(6)
+            ->get()
+            ->map(fn($r) => ['category' => $r->category, 'count' => (int) $r->count])
+            ->toArray();
+    }
+
+    private function monthOverMonth(int $familyId, $familyUserIds): array
+    {
+        $curStart  = now()->startOfMonth();
+        $curEnd    = now();
+        $prevStart = now()->subMonth()->startOfMonth();
+        $prevEnd   = now()->subMonth()->endOfMonth();
+
+        $cur  = $this->periodCounts($familyId, $familyUserIds, $curStart,  $curEnd);
+        $prev = $this->periodCounts($familyId, $familyUserIds, $prevStart, $prevEnd);
+
+        $change = fn(int $c, int $p) => $p > 0 ? (int) round(($c - $p) / $p * 100) : ($c > 0 ? 100 : 0);
+
+        return [
+            'consumed' => ['cur' => $cur['consumed'], 'prev' => $prev['consumed'], 'pct' => $change($cur['consumed'], $prev['consumed'])],
+            'wasted'   => ['cur' => $cur['wasted'],   'prev' => $prev['wasted'],   'pct' => $change($cur['wasted'],   $prev['wasted'])],
+            'shared'   => ['cur' => $cur['shared'],   'prev' => $prev['shared'],   'pct' => $change($cur['shared'],   $prev['shared'])],
+        ];
+    }
+
+    private function periodCounts(int $familyId, $familyUserIds, $start, $end): array
+    {
+        return [
+            'consumed' => Product::where('family_id', $familyId)->where('is_consumed', true)->whereBetween('consumed_at', [$start, $end])->count(),
+            'wasted'   => Product::where('family_id', $familyId)->where('is_wasted',   true)->whereBetween('wasted_at',   [$start, $end])->count(),
+            'shared'   => FoodShare::whereIn('user_id', $familyUserIds)->where('status', 'given')->whereBetween('updated_at', [$start, $end])->count(),
+        ];
     }
 
     private function monthlyBreakdown(int $familyId, $familyUserIds): array

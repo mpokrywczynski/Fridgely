@@ -35,19 +35,30 @@ jobs:
         env:
           NODE_ENV: production
 
+      - name: Test SFTP connection
+        run: |
+          sudo apt-get install -y lftp sshpass -qq
+          echo "Testing SSH connection to ${{ secrets.SFTP_HOST }}..."
+          sshpass -p '${{ secrets.SFTP_PASSWORD }}' ssh \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=15 \
+            -o BatchMode=no \
+            '${{ secrets.SFTP_USER }}@${{ secrets.SFTP_HOST }}' \
+            'echo "SSH OK: $(pwd)"' || echo "SSH test failed (exit $?)"
+
       - name: Deploy via SFTP (lftp)
         run: |
-          sudo apt-get install -y lftp -qq
-          lftp -c "
+          lftp -d -c "
           set sftp:auto-confirm yes
           set net:max-retries 5
-          set net:timeout 60
-          set net:reconnect-interval-base 5
+          set net:timeout 120
+          set net:reconnect-interval-base 10
           set net:reconnect-interval-multiplier 2
-          set sftp:connect-program 'ssh -a -x -o StrictHostKeyChecking=no'
+          set net:idle-timeout 120
+          set sftp:connect-program 'ssh -a -x -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ServerAliveCountMax=6'
           open -u '${{ secrets.SFTP_USER }}','${{ secrets.SFTP_PASSWORD }}' sftp://${{ secrets.SFTP_HOST }}
+          ls
           mirror --reverse --delete --no-perms \
-            --exclude-glob .git \
             --exclude-glob .git/ \
             --exclude-glob .github/ \
             --exclude-glob node_modules/ \
@@ -60,6 +71,7 @@ jobs:
             --exclude-glob storage/framework/cache/ \
             --exclude-glob storage/framework/views/ \
             ./ ${{ secrets.SFTP_PATH }}
+
           bye
           "
 

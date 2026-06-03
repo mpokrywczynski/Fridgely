@@ -35,29 +35,33 @@ jobs:
         env:
           NODE_ENV: production
 
-      - name: Test SFTP connection
+      - name: Test SFTP connection + path
         run: |
-          sudo apt-get install -y lftp sshpass -qq
-          echo "Testing SSH connection to ${{ secrets.SFTP_HOST }}..."
-          sshpass -p '${{ secrets.SFTP_PASSWORD }}' ssh \
-            -o StrictHostKeyChecking=no \
-            -o ConnectTimeout=15 \
-            -o BatchMode=no \
-            '${{ secrets.SFTP_USER }}@${{ secrets.SFTP_HOST }}' \
-            'echo "SSH OK: $(pwd)"' || echo "SSH test failed (exit $?)"
+          sudo apt-get install -y lftp -qq
+          echo "=== Testing SFTP with lftp ==="
+          lftp -c "
+          set sftp:auto-confirm yes
+          set net:max-retries 1
+          set net:timeout 30
+          set sftp:connect-program 'ssh -a -x -o StrictHostKeyChecking=no'
+          open -u '${{ secrets.SFTP_USER }}','${{ secrets.SFTP_PASSWORD }}' sftp://${{ secrets.SFTP_HOST }}
+          echo '--- Root listing ---'
+          ls
+          echo '--- SFTP_PATH listing ---'
+          ls ${{ secrets.SFTP_PATH }}
+          bye
+          " && echo "SFTP OK" || echo "SFTP FAILED (exit $?)"
 
       - name: Deploy via SFTP (lftp)
         run: |
-          lftp -d -c "
+          lftp -c "
           set sftp:auto-confirm yes
           set net:max-retries 5
-          set net:timeout 120
-          set net:reconnect-interval-base 10
+          set net:timeout 60
+          set net:reconnect-interval-base 5
           set net:reconnect-interval-multiplier 2
-          set net:idle-timeout 120
-          set sftp:connect-program 'ssh -a -x -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ServerAliveCountMax=6'
+          set sftp:connect-program 'ssh -a -x -o StrictHostKeyChecking=no'
           open -u '${{ secrets.SFTP_USER }}','${{ secrets.SFTP_PASSWORD }}' sftp://${{ secrets.SFTP_HOST }}
-          ls
           mirror --reverse --delete --no-perms \
             --exclude-glob .git/ \
             --exclude-glob .github/ \
@@ -74,6 +78,21 @@ jobs:
 
           bye
           "
+
+      - name: Clear Laravel cache on server
+        run: |
+          sudo apt-get install -y sshpass -qq
+          sshpass -p '${{ secrets.SFTP_PASSWORD }}' sftp \
+            -o StrictHostKeyChecking=no \
+            -o BatchMode=no \
+            '${{ secrets.SFTP_USER }}@${{ secrets.SFTP_HOST }}' << 'SFTP_EOF'
+          -rm /domains/fridgely.krywapo.kylos.pl/bootstrap/cache/routes-v7.php
+          -rm /domains/fridgely.krywapo.kylos.pl/bootstrap/cache/config.php
+          -rm /domains/fridgely.krywapo.kylos.pl/bootstrap/cache/packages.php
+          -rm /domains/fridgely.krywapo.kylos.pl/bootstrap/cache/services.php
+          quit
+          SFTP_EOF
+          echo "Cache cleared"
 
       - name: Run post-deploy setup
         run: |

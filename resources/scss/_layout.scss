@@ -1,0 +1,136 @@
+@use 'variables' as *;
+
+.app {
+    display: flex;
+    min-height: 100vh;
+}
+
+// ── Sidebar ──────────────────────────────────────────────
+.sidebar {
+    width: 260px;
+    background: $surface;
+    border-right: 1px solid $border;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 100;
+    transition: transform .25s ease;
+
+    &__logo {
+        padding: $space-lg $space-md;
+        display: flex;
+        align-items: center;
+        gap: $space-sm;
+        border-bottom: 1px solid $border;
+
+        span {
+            font-size: $font-size-lg;
+            font-weight: 700;
+            color: $primary;
+        }
+    }
+
+    &__nav {
+        flex: 1;
+        padding: $space-md 0;
+        overflow-y: auto;
+    }
+
+    &__footer {
+        padding: $space-md;
+        border-top: 1px solid $border;
+    }
+
+    @media (max-width: $bp-md) {
+        transform: translateX(-100%);
+
+        &.is-open {
+            transform: translateX(0);
+            box-shadow: $shadow-lg;
+        }
+    }
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: $space-sm;
+    padding: $space-sm $space-md;
+    color: $text-muted;
+    font-size: $font-size-sm;
+    font-weight: 500;
+    border-radius: $radius-sm;
+    margin: 2px $space-sm;
+    transition: background .15s, color .15s;
+    cursor: pointer;
+
+    &:hover {
+        background: $bg;
+        color: $text;
+    }
+
+    &.is-active {
+        background: lighten($primary, 55%);
+        color: $primary;
+    }
+
+    .nav-item__icon {
+        font-size: 18px;
+        width: 24px;
+        text-align: center;
+    }
+}
+
+// ── Main content ─────────────────────────────────────────
+.main {
+    margin-left: 260px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+
+    @media (max-width: $bp-md) {
+        margin-left: 0;
+    }
+}
+
+.topbar {
+    height: 60px;
+    background: $surface;
+    border-bottom: 1px solid $border;
+    display: flex;
+    align-items: center;
+    padding: 0 $space-lg;
+    gap: $space-md;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+
+    &__title {
+        font-size: $font-size-lg;
+        font-weight: 600;
+        flex: 1;
+    }
+
+    &__hamburger {
+        display: none;
+        font-size: 22px;
+        padding: $space-xs;
+
+        @media (max-width: $bp-md) {
+            display: block;
+        }
+    }
+}
+
+.page {
+    padding: $space-lg;
+    flex: 1;
+
+    @media (max-width: $bp-sm) {
+        padding: $space-md;
+    }
+}

@@ -1,0 +1,56 @@
+// Colors
+$primary:       #2D6A4F;
+$primary-light: #52B788;
+$primary-dark:  #1B4332;
+$accent:        #F9A825;
+$danger:        #E63946;
+$warning:       #F4A261;
+$success:       #52B788;
+$bg:            #F8FAF9;
+$surface:       #FFFFFF;
+$text:          #1A1A2E;
+$text-muted:    #6B7280;
+$border:        #E5E7EB;
+
+// Expiry status
+$expiry-fresh:    #52B788;
+$expiry-soon:     #F4A261;
+$expiry-urgent:   #E63946;
+$expiry-expired:  #9CA3AF;
+
+// Zone colors
+$zone-fridge:   #60A5FA;
+$zone-freezer:  #818CF8;
+$zone-pantry:   #A78BFA;
+$zone-cellar:   #6EE7B7;
+
+// Spacing
+$space-xs: 4px;
+$space-sm: 8px;
+$space-md: 16px;
+$space-lg: 24px;
+$space-xl: 32px;
+
+// Border radius
+$radius-sm:   6px;
+$radius-md:   12px;
+$radius-lg:   20px;
+$radius-full: 9999px;
+
+// Typography
+$font-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+$font-size-sm:   13px;
+$font-size-base: 15px;
+$font-size-lg:   18px;
+$font-size-xl:   24px;
+
+// Shadows
+$shadow-sm: 0 1px 3px rgba(0,0,0,.08);
+$shadow-md: 0 4px 12px rgba(0,0,0,.10);
+$shadow-lg: 0 8px 24px rgba(0,0,0,.12);
+
+// Breakpoints
+$bp-sm: 480px;
+$bp-md: 768px;
+$bp-lg: 1024px;
+$bp-xl: 1280px;

@@ -77,12 +77,13 @@ function renderScoreSection(data) {
 
 // ── Summary cards ────────────────────────────────────────
 
-function renderSummaryCards({ total_consumed, total_wasted, total_active, money_saved = 0, money_wasted = 0 }) {
+function renderSummaryCards({ total_consumed, total_wasted, total_shared = 0, total_active, money_saved = 0, money_wasted = 0 }) {
     const hasMoneyData = money_saved > 0 || money_wasted > 0;
     return `
     <div style="display:flex;flex-direction:column;gap:16px">
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px">
             ${statCard('✅', 'Zużyte', total_consumed, '#ECFDF5', 'var(--primary)')}
+            ${statCard('🤝', 'Oddane', total_shared, '#F0FDF4', '#0D9488')}
             ${statCard('🗑', 'Zmarnowane', total_wasted, '#FFF1F0', 'var(--danger)')}
             ${statCard('🧊', 'W lodówce', total_active, '#EFF6FF', '#3B82F6')}
         </div>
@@ -123,19 +124,26 @@ function renderMonthlyChart(monthly) {
     const maxVal = Math.max(1, ...monthly.map(m => m.consumed + m.wasted));
 
     const bars = monthly.map(m => {
+        const shared    = m.shared || 0;
         const consumedH = Math.round((m.consumed / maxVal) * 120);
-        const wastedH   = Math.round((m.wasted   / maxVal) * 120);
-        const total     = m.consumed + m.wasted;
+        const sharedH   = Math.round((shared      / maxVal) * 120);
+        const wastedH   = Math.round((m.wasted    / maxVal) * 120);
+        const total     = m.consumed + shared + m.wasted;
         return `
-        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;min-width:40px">
-            <div style="display:flex;align-items:flex-end;gap:3px;height:120px">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;min-width:48px">
+            <div style="display:flex;align-items:flex-end;gap:2px;height:120px">
                 <div title="Zużyte: ${m.consumed}" style="
-                    width:18px;height:${consumedH}px;
+                    width:14px;height:${consumedH}px;
                     background:var(--primary);border-radius:4px 4px 0 0;
                     transition:height .4s ease;min-height:${m.consumed > 0 ? 3 : 0}px">
                 </div>
+                <div title="Oddane: ${shared}" style="
+                    width:14px;height:${sharedH}px;
+                    background:#0D9488;border-radius:4px 4px 0 0;
+                    transition:height .4s ease;min-height:${shared > 0 ? 3 : 0}px">
+                </div>
                 <div title="Zmarnowane: ${m.wasted}" style="
-                    width:18px;height:${wastedH}px;
+                    width:14px;height:${wastedH}px;
                     background:var(--danger);border-radius:4px 4px 0 0;
                     transition:height .4s ease;min-height:${m.wasted > 0 ? 3 : 0}px">
                 </div>
@@ -152,10 +160,14 @@ function renderMonthlyChart(monthly) {
             <div style="display:flex;align-items:flex-end;gap:8px;padding:8px 0 0;overflow-x:auto">
                 ${bars}
             </div>
-            <div style="display:flex;gap:16px;margin-top:16px;font-size:12px;color:var(--text-muted)">
+            <div style="display:flex;gap:16px;margin-top:16px;font-size:12px;color:var(--text-muted);flex-wrap:wrap">
                 <span style="display:flex;align-items:center;gap:5px">
                     <span style="width:12px;height:12px;background:var(--primary);border-radius:2px;display:inline-block"></span>
                     Zużyte
+                </span>
+                <span style="display:flex;align-items:center;gap:5px">
+                    <span style="width:12px;height:12px;background:#0D9488;border-radius:2px;display:inline-block"></span>
+                    Oddane
                 </span>
                 <span style="display:flex;align-items:center;gap:5px">
                     <span style="width:12px;height:12px;background:var(--danger);border-radius:2px;display:inline-block"></span>
@@ -287,7 +299,7 @@ function gradeLabel(grade) {
 
 function scoreDescription(score) {
     if (score === 100) return 'Jeszcze brak danych lub <strong>idealny wynik</strong>! Żadnego marnowania.';
-    return `Na każde 100 produktów <strong>${100 - score} ląduje w koszu</strong>. Dąż do oceny A!`;
+    return `Na każde 100 produktów <strong>${100 - score} ląduje w koszu</strong>. Produkty zjedzone i oddane sąsiadom liczą się tak samo — dąż do oceny A!`;
 }
 
 function dayWord(n) {

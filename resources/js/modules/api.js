@@ -123,4 +123,17 @@ export const api = {
         reply: (id, d)   => api.post(`/support/${id}/reply`, d),
         close: (id)      => api.post(`/support/${id}/close`),
     },
+
+    foodSharing: {
+        list:          (lat, lng) => api.get(`/food-sharing?lat=${lat}&lng=${lng}`),
+        my:            ()         => api.get('/food-sharing/my'),
+        get:           (id)       => api.get(`/food-sharing/${id}`),
+        create:        (d)        => api.post('/food-sharing', d),
+        reserve:       (id)       => api.post(`/food-sharing/${id}/reserve`),
+        cancelReserve: (id)       => api.post(`/food-sharing/${id}/cancel-reserve`),
+        give:          (id)       => api.post(`/food-sharing/${id}/give`),
+        cancel:        (id)       => api.delete(`/food-sharing/${id}`),
+        purge:         (id)       => api.delete(`/food-sharing/${id}/purge`),
+        sendMessage:   (id, d)    => api.post(`/food-sharing/${id}/messages`, d),
+    },
 };

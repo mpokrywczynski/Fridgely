@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\FoodShareController;
 use App\Http\Controllers\Api\SupportController;
 use App\Http\Controllers\Api\CustomRecipeController;
 use App\Http\Controllers\Api\FamilyController;
@@ -67,4 +68,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('support',                       [SupportController::class, 'store']);
     Route::post('support/{message}/reply',       [SupportController::class, 'reply']);
     Route::post('support/{message}/close',       [SupportController::class, 'close']);
+
+    Route::get('food-sharing/my',                           [FoodShareController::class, 'my']);
+    Route::get('food-sharing',                              [FoodShareController::class, 'index']);
+    Route::post('food-sharing',                             [FoodShareController::class, 'store']);
+    Route::get('food-sharing/{foodShare}',                  [FoodShareController::class, 'show']);
+    Route::post('food-sharing/{foodShare}/reserve',         [FoodShareController::class, 'reserve']);
+    Route::post('food-sharing/{foodShare}/cancel-reserve',  [FoodShareController::class, 'cancelReserve']);
+    Route::post('food-sharing/{foodShare}/give',            [FoodShareController::class, 'give']);
+    Route::delete('food-sharing/{foodShare}',               [FoodShareController::class, 'cancel']);
+    Route::delete('food-sharing/{foodShare}/purge',         [FoodShareController::class, 'purge']);
+    Route::post('food-sharing/{foodShare}/messages',        [FoodShareController::class, 'sendMessage']);
 });

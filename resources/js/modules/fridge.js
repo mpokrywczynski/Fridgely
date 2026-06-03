@@ -3,6 +3,7 @@ import { getUser } from './auth.js';
 import { initReceiptScanner, openReceiptScanner } from './receipt.js';
 import { initBarcodeScanner, openBarcodeScanner, openWasteScanner } from './barcode.js';
 import { openPremiumModal } from './premium.js';
+import { getGeoLocation } from './foodsharing.js';
 
 let zones = [];
 let products = [];
@@ -302,8 +303,28 @@ function renderAddProductModal() {
                         <input type="number" id="edit-price" class="form-input" min="0" step="0.01" placeholder="0.00">
                     </div>
                 </div>
+
+                <div id="edit-share-section" style="display:none;margin-top:14px;padding:12px 14px;
+                    background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px">
+                    <div style="font-size:13px;font-weight:600;color:#15803d;margin-bottom:10px">
+                        🤝 Dodaj ogłoszenie "Oddam sąsiadom"
+                    </div>
+                    <div class="form-group" style="margin-bottom:8px">
+                        <input type="text" id="edit-share-note" class="form-input"
+                            placeholder="Notatka opcjonalna (np. nierozpakowane, ważne do 10.06)"
+                            style="font-size:13px">
+                    </div>
+                    <div id="edit-share-status" style="font-size:12px;color:var(--text-muted);min-height:18px;margin-bottom:8px"></div>
+                    <div style="display:flex;gap:8px">
+                        <button class="btn btn--sm" id="edit-share-confirm"
+                            style="background:#16a34a;color:#fff;border:none">Opublikuj ogłoszenie</button>
+                        <button class="btn btn--outline btn--sm" id="edit-share-hide">Anuluj</button>
+                    </div>
+                </div>
             </div>
             <div class="modal__footer">
+                <button class="btn btn--outline btn--sm" id="edit-share-btn"
+                    style="margin-right:auto;color:#16a34a;border-color:#bbf7d0;font-size:12px">🤝 Oddam sąsiadom</button>
                 <button class="btn btn--outline" id="edit-modal-cancel">Anuluj</button>
                 <button class="btn btn--primary" id="edit-modal-submit">Zapisz zmiany</button>
             </div>
@@ -597,6 +618,63 @@ function bindFridgeEvents(container) {
             alertEl.innerHTML = `<div class="alert alert--error" style="margin-bottom:8px">${msg}</div>`;
             btn.disabled    = false;
             btn.textContent = 'Zapisz zmiany';
+        }
+    });
+    // ────────────────────────────────────────────────────
+
+    // ── Oddam sąsiadom ──────────────────────────────────
+    container.querySelector('#edit-share-btn')?.addEventListener('click', () => {
+        const sec = container.querySelector('#edit-share-section');
+        sec.style.display = sec.style.display === 'none' ? 'block' : 'none';
+        container.querySelector('#edit-share-status').textContent = '';
+        container.querySelector('#edit-share-note').value = '';
+        const confirmBtn = container.querySelector('#edit-share-confirm');
+        if (confirmBtn) { confirmBtn.style.display = ''; confirmBtn.disabled = false; confirmBtn.textContent = 'Opublikuj ogłoszenie'; }
+    });
+
+    container.querySelector('#edit-share-hide')?.addEventListener('click', () => {
+        container.querySelector('#edit-share-section').style.display = 'none';
+    });
+
+    container.querySelector('#edit-share-confirm')?.addEventListener('click', async () => {
+        const btn      = container.querySelector('#edit-share-confirm');
+        const statusEl = container.querySelector('#edit-share-status');
+        const note     = container.querySelector('#edit-share-note').value.trim();
+        const p        = products.find(x => x.id === editProductId);
+        if (!p) return;
+
+        btn.disabled    = true;
+        btn.textContent = '…';
+        statusEl.style.color  = 'var(--text-muted)';
+        statusEl.textContent  = 'Pobieranie lokalizacji…';
+
+        let loc;
+        try {
+            loc = await getGeoLocation();
+        } catch {
+            statusEl.style.color = 'var(--danger)';
+            statusEl.textContent = 'Włącz lokalizację w ustawieniach przeglądarki.';
+            btn.disabled = false; btn.textContent = 'Opublikuj ogłoszenie';
+            return;
+        }
+
+        try {
+            statusEl.textContent = 'Publikowanie…';
+            await api.foodSharing.create({
+                product_id:  p.id,
+                name:        p.name,
+                description: note || null,
+                lat:         loc.lat,
+                lng:         loc.lng,
+            });
+            statusEl.style.color = '#16a34a';
+            statusEl.textContent = '✅ Ogłoszenie opublikowane! Sąsiedzi zobaczą je na mapie.';
+            btn.style.display = 'none';
+            container.querySelector('#edit-share-hide').textContent = 'Zamknij';
+        } catch (err) {
+            statusEl.style.color = 'var(--danger)';
+            statusEl.textContent = err.message || 'Błąd publikacji.';
+            btn.disabled = false; btn.textContent = 'Opublikuj ogłoszenie';
         }
     });
     // ────────────────────────────────────────────────────

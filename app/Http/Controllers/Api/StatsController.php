@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\FoodShare;
 use App\Models\Product;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,8 +21,12 @@ class StatsController extends Controller
         $wasted   = Product::where('family_id', $familyId)->where('is_wasted',   true)->count();
         $active   = Product::where('family_id', $familyId)->where('is_consumed', false)->where('is_wasted', false)->count();
 
-        $total = $consumed + $wasted;
-        $score = $total > 0 ? (int) round($consumed / $total * 100) : 100;
+        $familyUserIds = User::where('family_id', $familyId)->pluck('id');
+        $shared = FoodShare::whereIn('user_id', $familyUserIds)->where('status', 'given')->count();
+
+        // oddane sąsiadom = tak samo dobre jak zjedzone
+        $total = $consumed + $shared + $wasted;
+        $score = $total > 0 ? (int) round(($consumed + $shared) / $total * 100) : 100;
         $grade = $this->grade($score);
 
         $streakDays = $this->computeStreak($familyId);
@@ -41,12 +47,13 @@ class StatsController extends Controller
             'grade_color'    => $this->gradeColor($grade),
             'total_consumed' => $consumed,
             'total_wasted'   => $wasted,
+            'total_shared'   => $shared,
             'total_active'   => $active,
             'streak_days'    => $streakDays,
             'money_saved'    => round($moneySaved, 2),
             'money_wasted'   => round($moneyWasted, 2),
-            'monthly'        => $this->monthlyBreakdown($familyId),
-            'badges'         => $this->badges($consumed, $wasted, $score, $streakDays),
+            'monthly'        => $this->monthlyBreakdown($familyId, $familyUserIds),
+            'badges'         => $this->badges($consumed, $wasted, $score, $streakDays, $shared),
         ]);
     }
 
@@ -87,7 +94,7 @@ class StatsController extends Controller
         return (int) Carbon::parse($lastWaste)->diffInDays(now());
     }
 
-    private function monthlyBreakdown(int $familyId): array
+    private function monthlyBreakdown(int $familyId, $familyUserIds): array
     {
         $months = [];
         for ($i = 5; $i >= 0; $i--) {
@@ -105,17 +112,23 @@ class StatsController extends Controller
                 ->whereBetween('wasted_at', [$start, $end])
                 ->count();
 
+            $shared = FoodShare::whereIn('user_id', $familyUserIds)
+                ->where('status', 'given')
+                ->whereBetween('updated_at', [$start, $end])
+                ->count();
+
             $months[] = [
                 'month'    => $date->format('Y-m'),
                 'label'    => $date->locale('pl')->isoFormat('MMM'),
                 'consumed' => $consumed,
                 'wasted'   => $wasted,
+                'shared'   => $shared,
             ];
         }
         return $months;
     }
 
-    private function badges(int $consumed, int $wasted, int $score, int $streak): array
+    private function badges(int $consumed, int $wasted, int $score, int $streak, int $shared = 0): array
     {
         return [
             // ── Pierwsze kroki ────────────────────────────────────
@@ -212,6 +225,28 @@ class StatsController extends Controller
                 'name'   => 'Bezbłędny start',
                 'desc'   => 'Zużyj 5 produktów bez żadnej straty',
                 'earned' => $wasted === 0 && $consumed >= 5,
+            ],
+            // ── Foodsharing ───────────────────────────────────────
+            [
+                'id'     => 'first_share',
+                'icon'   => '🤝',
+                'name'   => 'Dobry sąsiad',
+                'desc'   => 'Oddaj pierwszy produkt sąsiadom',
+                'earned' => $shared >= 1,
+            ],
+            [
+                'id'     => 'five_shares',
+                'icon'   => '🌱',
+                'name'   => 'Foodsharing Fan',
+                'desc'   => 'Oddaj 5 produktów sąsiadom',
+                'earned' => $shared >= 5,
+            ],
+            [
+                'id'     => 'ten_shares',
+                'icon'   => '🌍',
+                'name'   => 'Eko-społeczność',
+                'desc'   => 'Oddaj 10 produktów sąsiadom',
+                'earned' => $shared >= 10,
             ],
         ];
     }

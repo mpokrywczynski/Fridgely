@@ -9,6 +9,8 @@
         window.PUSHER_KEY    = '{{ config('broadcasting.connections.pusher.key') }}';
         window.PUSHER_CLUSTER = '{{ config('broadcasting.connections.pusher.options.cluster') }}';
     </script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     @vite(['resources/scss/app.scss', 'resources/js/app.js'])
 </head>
 <body>

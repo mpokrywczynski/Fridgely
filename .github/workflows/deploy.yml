@@ -35,25 +35,16 @@ jobs:
         env:
           NODE_ENV: production
 
-      - name: Test SFTP connection + path
+      - name: Generate setup.php
         run: |
-          sudo apt-get install -y lftp -qq
-          echo "=== Testing SFTP with lftp ==="
-          lftp -c "
-          set sftp:auto-confirm yes
-          set net:max-retries 1
-          set net:timeout 30
-          set sftp:connect-program 'ssh -a -x -o StrictHostKeyChecking=no'
-          open -u '${{ secrets.SFTP_USER }}','${{ secrets.SFTP_PASSWORD }}' sftp://${{ secrets.SFTP_HOST }}
-          echo '--- Root listing ---'
-          ls
-          echo '--- SFTP_PATH listing ---'
-          ls ${{ secrets.SFTP_PATH }}
-          bye
-          " && echo "SFTP OK" || echo "SFTP FAILED (exit $?)"
+          TOKEN=$(openssl rand -hex 32)
+          echo "SETUP_TOKEN=$TOKEN" >> $GITHUB_ENV
+          sed "s/%%TOKEN%%/$TOKEN/" .github/setup-template.php > public/setup.php
+          echo "setup.php generated"
 
       - name: Deploy via SFTP (lftp)
         run: |
+          sudo apt-get install -y lftp -qq
           lftp -c "
           set sftp:auto-confirm yes
           set net:max-retries 5
@@ -75,35 +66,19 @@ jobs:
             --exclude-glob storage/framework/cache/ \
             --exclude-glob storage/framework/views/ \
             ./ ${{ secrets.SFTP_PATH }}
-
           bye
           "
 
-      - name: Clear Laravel cache on server
+      - name: Run setup.php on server
         run: |
-          sudo apt-get install -y sshpass -qq
-          sshpass -p '${{ secrets.SFTP_PASSWORD }}' sftp \
-            -o StrictHostKeyChecking=no \
-            -o BatchMode=no \
-            '${{ secrets.SFTP_USER }}@${{ secrets.SFTP_HOST }}' << 'SFTP_EOF'
-          -rm /domains/fridgely.krywapo.kylos.pl/bootstrap/cache/routes-v7.php
-          -rm /domains/fridgely.krywapo.kylos.pl/bootstrap/cache/config.php
-          -rm /domains/fridgely.krywapo.kylos.pl/bootstrap/cache/packages.php
-          -rm /domains/fridgely.krywapo.kylos.pl/bootstrap/cache/services.php
-          quit
-          SFTP_EOF
-          echo "Cache cleared"
-
-      - name: Run post-deploy setup
-        run: |
-          echo "Triggering deploy-run..."
-          HTTP_CODE=$(curl -s -o /tmp/deploy_response.txt -w "%{http_code}" --max-time 90 \
-            "${{ secrets.APP_URL }}/deploy-run?token=${{ secrets.DEPLOY_TOKEN }}")
-          RESPONSE=$(cat /tmp/deploy_response.txt)
+          echo "Triggering setup..."
+          HTTP_CODE=$(curl -s -o /tmp/setup_response.txt -w "%{http_code}" --max-time 90 \
+            "${{ secrets.APP_URL }}/setup.php?token=${{ env.SETUP_TOKEN }}")
+          RESPONSE=$(cat /tmp/setup_response.txt)
           echo "HTTP status: $HTTP_CODE"
           echo "Response: $RESPONSE"
           if [ "$HTTP_CODE" != "200" ]; then
-            echo "::error::Deploy setup failed with HTTP $HTTP_CODE"
+            echo "::error::Setup failed with HTTP $HTTP_CODE"
             exit 1
           fi
           echo "Deploy complete."

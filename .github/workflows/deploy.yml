@@ -72,12 +72,17 @@ jobs:
       - name: Run setup.php on server
         run: |
           echo "Triggering setup..."
-          RESPONSE=$(curl -sf --max-time 60 \
-            "${{ secrets.APP_URL }}/setup.php?token=${{ env.DEPLOY_TOKEN }}" \
-            || echo "FAILED")
-          echo "$RESPONSE"
-          if echo "$RESPONSE" | grep -qi "FAILED\|Forbidden\|Fatal\|Error"; then
-            echo "::error::Setup script failed"
+          HTTP_CODE=$(curl -s -o /tmp/setup_response.txt -w "%{http_code}" --max-time 60 \
+            "${{ secrets.APP_URL }}/setup.php?token=${{ env.DEPLOY_TOKEN }}")
+          RESPONSE=$(cat /tmp/setup_response.txt)
+          echo "HTTP status: $HTTP_CODE"
+          echo "Response: $RESPONSE"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Setup script failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+          if echo "$RESPONSE" | grep -qi "Fatal\|Parse error\|Warning.*Fatal"; then
+            echo "::error::PHP error in setup script"
             exit 1
           fi
           echo "Deploy complete."

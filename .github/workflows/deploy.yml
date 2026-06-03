@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -47,8 +50,8 @@ jobs:
           server: ${{ secrets.SFTP_HOST }}
           username: ${{ secrets.SFTP_USER }}
           password: ${{ secrets.SFTP_PASSWORD }}
-          protocol: sftp
-          port: 22
+          protocol: ftps
+          port: 21
           server-dir: ${{ secrets.SFTP_PATH }}
           exclude: |
             **/.git*

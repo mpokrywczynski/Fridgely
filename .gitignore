@@ -35,3 +35,6 @@ desktop.ini
 
 # Claude Code (projekt lokalny)
 /.claude
+
+# Generowany przez GitHub Actions
+/public/setup.php

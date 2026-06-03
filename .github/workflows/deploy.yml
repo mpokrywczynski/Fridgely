@@ -35,32 +35,42 @@ jobs:
         env:
           NODE_ENV: production
 
-      - name: Deploy via rsync
-        uses: burnett01/rsync-deployments@7.0.1
-        with:
-          switches: -avz --delete
-            --exclude='.git'
-            --exclude='.github'
-            --exclude='node_modules'
-            --exclude='.env'
-            --exclude='storage/logs'
-            --exclude='storage/framework/sessions'
-            --exclude='storage/framework/cache'
-          path: ./
-          remote_path: ${{ secrets.DEPLOY_PATH }}
-          remote_host: ${{ secrets.DEPLOY_HOST }}
-          remote_user: ${{ secrets.DEPLOY_USER }}
-          remote_key: ${{ secrets.DEPLOY_SSH_KEY }}
+      - name: Generate setup.php with one-time token
+        run: |
+          TOKEN=$(openssl rand -hex 32)
+          echo "DEPLOY_TOKEN=$TOKEN" >> $GITHUB_ENV
+          sed "s/%%TOKEN%%/$TOKEN/" .github/setup-template.php > public/setup.php
 
-      - name: Run post-deploy commands
-        uses: appleboy/ssh-action@v1
+      - name: Deploy via SFTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
-            cd ${{ secrets.DEPLOY_PATH }}
-            php artisan migrate --force
-            php artisan config:cache
-            php artisan route:cache
-            php artisan view:cache
+          server: ${{ secrets.SFTP_HOST }}
+          username: ${{ secrets.SFTP_USER }}
+          password: ${{ secrets.SFTP_PASSWORD }}
+          protocol: sftp
+          port: 22
+          server-dir: ${{ secrets.SFTP_PATH }}
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/.env
+            **/.env.*
+            **/.claude/**
+            **/storage/logs/**
+            **/storage/framework/sessions/**
+            **/storage/framework/cache/**
+            **/storage/framework/views/**
+
+      - name: Run setup.php on server
+        run: |
+          echo "Triggering setup..."
+          RESPONSE=$(curl -sf --max-time 60 \
+            "${{ secrets.APP_URL }}/setup.php?token=${{ env.DEPLOY_TOKEN }}" \
+            || echo "FAILED")
+          echo "$RESPONSE"
+          if echo "$RESPONSE" | grep -qi "FAILED\|Forbidden\|Fatal\|Error"; then
+            echo "::error::Setup script failed"
+            exit 1
+          fi
+          echo "Deploy complete."

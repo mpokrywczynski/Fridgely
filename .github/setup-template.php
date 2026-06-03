@@ -8,19 +8,6 @@ header('Content-Type: text/plain');
 $root = dirname(__DIR__);
 $out  = [];
 
-// ── Composer install ──────────────────────────────────────
-if (!function_exists('exec')) {
-    echo "ERROR: exec() is disabled on this server. Run composer manually.\n";
-    exit(1);
-}
-
-exec("cd $root && composer install --no-dev --optimize-autoloader --no-interaction 2>&1", $composerOut, $composerCode);
-$out[] = 'composer: ' . ($composerCode === 0 ? 'OK' : 'FAILED');
-if ($composerCode !== 0) {
-    echo implode("\n", $out) . "\n" . implode("\n", $composerOut);
-    exit(1);
-}
-
 // ── Bootstrap Laravel ─────────────────────────────────────
 define('LARAVEL_START', microtime(true));
 require $root . '/vendor/autoload.php';

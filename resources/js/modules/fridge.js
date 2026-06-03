@@ -342,6 +342,96 @@ function bindFridgeEvents(container) {
             }
         });
     });
+    // ── Touch Drag & Drop (mobile) ───────────────────────
+    let touchDragState = null;
+    let touchDragGhost = null;
+
+    function createDragGhost(el) {
+        const g = el.cloneNode(true);
+        g.style.cssText = [
+            'position:fixed', 'z-index:9999', 'pointer-events:none',
+            `width:${el.offsetWidth}px`, 'opacity:.85',
+            'box-shadow:0 4px 20px rgba(0,0,0,.25)',
+            'border-radius:8px', 'background:var(--surface)',
+        ].join(';');
+        document.body.appendChild(g);
+        return g;
+    }
+
+    async function commitTouchDrop(pid, touch) {
+        touchDragGhost.style.display = 'none';
+        const under = document.elementFromPoint(touch.clientX, touch.clientY);
+        touchDragGhost.remove();
+        touchDragGhost = null;
+        container.querySelectorAll('.zone-card').forEach(z => z.classList.remove('drop-over'));
+
+        const zoneEl = under?.closest('.zone-card');
+        if (!zoneEl) return;
+
+        const zoneId = parseInt(zoneEl.dataset.zoneId);
+        const product = products.find(p => p.id === pid);
+        if (!product || product.storage_zone_id === zoneId) return;
+
+        product.storage_zone_id = zoneId;
+        render(container);
+        try {
+            await api.products.update(pid, { storage_zone_id: zoneId });
+        } catch {
+            [zones, products] = await Promise.all([api.zones.list(), api.products.list()]);
+            render(container);
+        }
+    }
+
+    container.querySelectorAll('.product-item[draggable]').forEach(el => {
+        el.addEventListener('touchstart', (e) => {
+            if (e.target.closest('.btn')) return;
+            const t = e.touches[0];
+            const rect = el.getBoundingClientRect();
+            touchDragState = { el, pid: parseInt(el.dataset.productId), startX: t.clientX, startY: t.clientY, rect };
+        });
+
+        el.addEventListener('touchmove', (e) => {
+            if (!touchDragState) return;
+            const t = e.touches[0];
+            const dx = t.clientX - touchDragState.startX;
+            const dy = t.clientY - touchDragState.startY;
+
+            if (!touchDragGhost && Math.hypot(dx, dy) > 8) {
+                touchDragGhost = createDragGhost(touchDragState.el);
+                touchDragState.el.classList.add('is-dragging');
+            }
+            if (!touchDragGhost) return;
+
+            e.preventDefault();
+            const { rect } = touchDragState;
+            touchDragGhost.style.left = (t.clientX - (touchDragState.startX - rect.left)) + 'px';
+            touchDragGhost.style.top  = (t.clientY - (touchDragState.startY - rect.top)) + 'px';
+
+            touchDragGhost.style.display = 'none';
+            const under = document.elementFromPoint(t.clientX, t.clientY);
+            touchDragGhost.style.display = '';
+            const zoneEl = under?.closest('.zone-card');
+            container.querySelectorAll('.zone-card').forEach(z => z.classList.remove('drop-over'));
+            if (zoneEl) zoneEl.classList.add('drop-over');
+        }, { passive: false });
+
+        el.addEventListener('touchend', async (e) => {
+            if (!touchDragState) return;
+            const pid = touchDragState.pid;
+            touchDragState.el.classList.remove('is-dragging');
+            touchDragState = null;
+
+            if (touchDragGhost) {
+                await commitTouchDrop(pid, e.changedTouches[0]);
+            }
+        });
+
+        el.addEventListener('touchcancel', () => {
+            if (touchDragGhost) { touchDragGhost.remove(); touchDragGhost = null; }
+            if (touchDragState) { touchDragState.el.classList.remove('is-dragging'); touchDragState = null; }
+            container.querySelectorAll('.zone-card').forEach(z => z.classList.remove('drop-over'));
+        });
+    });
     // ────────────────────────────────────────────────────
 
     // ── Edycja produktu ─────────────────────────────────

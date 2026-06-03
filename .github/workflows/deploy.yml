@@ -4,9 +4,6 @@ on:
   push:
     branches: [main]
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -44,27 +41,30 @@ jobs:
           echo "DEPLOY_TOKEN=$TOKEN" >> $GITHUB_ENV
           sed "s/%%TOKEN%%/$TOKEN/" .github/setup-template.php > public/setup.php
 
-      - name: Deploy via SFTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
-        with:
-          server: ${{ secrets.SFTP_HOST }}
-          username: ${{ secrets.SFTP_USER }}
-          password: ${{ secrets.SFTP_PASSWORD }}
-          protocol: ftps
-          port: 21
-          server-dir: ${{ secrets.SFTP_PATH }}
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/node_modules/**
-            **/vendor/**
-            **/.env
-            **/.env.*
-            **/.claude/**
-            **/storage/logs/**
-            **/storage/framework/sessions/**
-            **/storage/framework/cache/**
-            **/storage/framework/views/**
+      - name: Deploy via SFTP (lftp)
+        run: |
+          sudo apt-get install -y lftp -qq
+          lftp -c "
+          set sftp:auto-confirm yes
+          set net:max-retries 3
+          set net:timeout 30
+          open -u '${{ secrets.SFTP_USER }}','${{ secrets.SFTP_PASSWORD }}' sftp://${{ secrets.SFTP_HOST }}
+          mirror --reverse --delete --no-perms --verbose \
+            --exclude-glob .git \
+            --exclude-glob .git/ \
+            --exclude-glob .github/ \
+            --exclude-glob node_modules/ \
+            --exclude-glob vendor/ \
+            --exclude-glob .env \
+            --exclude-glob .env.* \
+            --exclude-glob .claude/ \
+            --exclude-glob storage/logs/ \
+            --exclude-glob storage/framework/sessions/ \
+            --exclude-glob storage/framework/cache/ \
+            --exclude-glob storage/framework/views/ \
+            ./ ${{ secrets.SFTP_PATH }}
+          bye
+          "
 
       - name: Run setup.php on server
         run: |

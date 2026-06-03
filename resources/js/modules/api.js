@@ -116,4 +116,11 @@ export const api = {
         },
         confirm: (products) => api.post('/receipts/confirm', { products }),
     },
+
+    support: {
+        list:  ()        => api.get('/support'),
+        send:  (d)       => api.post('/support', d),
+        reply: (id, d)   => api.post(`/support/${id}/reply`, d),
+        close: (id)      => api.post(`/support/${id}/close`),
+    },
 };

@@ -83,8 +83,12 @@ class ProductController extends Controller
         ]);
 
         $product->update($data);
+        $product->refresh();
 
-        return response()->json($product->load('storageZone'));
+        return response()->json(array_merge($product->load('storageZone')->toArray(), [
+            'days_until_expiry'     => $product->days_until_expiry,
+            'effective_expiry_date' => $product->effective_expiry_date?->toDateString(),
+        ]));
     }
 
     public function destroy(Request $request, Product $product): JsonResponse

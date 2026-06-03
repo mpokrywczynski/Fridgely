@@ -1,5 +1,18 @@
 @use 'variables' as *;
 
+:root {
+    --primary:     #{$primary};
+    --accent:      #{$accent};
+    --danger:      #{$danger};
+    --warning:     #{$warning};
+    --success:     #{$success};
+    --bg:          #{$bg};
+    --surface:     #{$surface};
+    --text:        #{$text};
+    --text-muted:  #{$text-muted};
+    --border:      #{$border};
+}
+
 *, *::before, *::after {
     box-sizing: border-box;
     margin: 0;

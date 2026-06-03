@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\SupportController;
 use App\Http\Controllers\Api\CustomRecipeController;
 use App\Http\Controllers\Api\FamilyController;
 use App\Http\Controllers\Api\ProductController;
@@ -61,4 +62,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('shopping-list',                       [ShoppingListController::class, 'store']);
     Route::put('shopping-list/{item}',                 [ShoppingListController::class, 'update']);
     Route::delete('shopping-list/{item}',              [ShoppingListController::class, 'destroy']);
+
+    Route::get('support',                        [SupportController::class, 'index']);
+    Route::post('support',                       [SupportController::class, 'store']);
+    Route::post('support/{message}/reply',       [SupportController::class, 'reply']);
+    Route::post('support/{message}/close',       [SupportController::class, 'close']);
 });

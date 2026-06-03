@@ -4,6 +4,7 @@ import { renderFamily } from './family.js';
 import { renderShopping, destroyShopping } from './shopping.js';
 import { renderRecipes } from './recipes.js';
 import { renderStats } from './stats.js';
+import { renderSupport } from './support.js';
 import { injectPremiumModal, openPremiumModal } from './premium.js';
 import { api } from './api.js';
 
@@ -56,6 +57,10 @@ export async function renderApp() {
                 <div class="nav-item" data-page="stats">
                     <span class="nav-item__icon">📊</span>
                     <span>Statystyki</span>
+                </div>
+                <div class="nav-item" data-page="support">
+                    <span class="nav-item__icon">💬</span>
+                    <span>Pomoc</span>
                 </div>
             </nav>
             <div class="sidebar__footer">
@@ -113,7 +118,7 @@ async function navigateTo(page) {
     if (page === 'fridge') {
         destroyShopping();
         title.textContent = 'Lodówka';
-        await renderFridge(content);
+        await renderFridge(content, appIsPremium);
     } else if (page === 'recipes') {
         destroyShopping();
         title.textContent = 'Przepisy';
@@ -129,5 +134,9 @@ async function navigateTo(page) {
         destroyShopping();
         title.textContent = 'Statystyki';
         await renderStats(content, appIsPremium);
+    } else if (page === 'support') {
+        destroyShopping();
+        title.textContent = 'Pomoc';
+        renderSupport(content);
     }
 }

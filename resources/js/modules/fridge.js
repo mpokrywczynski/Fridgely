@@ -2,13 +2,18 @@ import { api } from './api.js';
 import { getUser } from './auth.js';
 import { initReceiptScanner, openReceiptScanner } from './receipt.js';
 import { initBarcodeScanner, openBarcodeScanner, openWasteScanner } from './barcode.js';
+import { openPremiumModal } from './premium.js';
 
 let zones = [];
 let products = [];
 let activeFilter = null;
 let fridgeContainer = null;
+let fridgeIsPremium = false;
+let searchQuery = '';
 
-export async function renderFridge(container) {
+export async function renderFridge(container, isPremium = false) {
+    fridgeIsPremium = isPremium;
+    searchQuery = '';
     fridgeContainer = container;
     container.innerHTML = '<div style="padding:24px;text-align:center"><div class="spinner" style="margin:auto"></div></div>';
 
@@ -48,11 +53,15 @@ function render(container) {
     const urgentCount = products.filter(p => p.days_until_expiry !== null && p.days_until_expiry <= 1).length;
     const soonCount   = products.filter(p => p.days_until_expiry !== null && p.days_until_expiry > 1 && p.days_until_expiry <= 3).length;
 
-    const filteredProducts = activeFilter === 'urgent'
+    let filteredProducts = activeFilter === 'urgent'
         ? products.filter(p => p.days_until_expiry !== null && p.days_until_expiry <= 1)
         : activeFilter === 'soon'
         ? products.filter(p => p.days_until_expiry !== null && p.days_until_expiry > 1 && p.days_until_expiry <= 3)
         : products;
+    if (fridgeIsPremium && searchQuery) {
+        const q = searchQuery.toLowerCase();
+        filteredProducts = filteredProducts.filter(p => p.name.toLowerCase().includes(q));
+    }
 
     container.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
@@ -78,6 +87,40 @@ function render(container) {
             </div>` : ''}
             ${activeFilter ? `<div class="expiry-bar__item" data-filter="clear" style="background:#f3f4f6;color:#6B7280">✕ Wyczyść filtr</div>` : ''}
         </div>` : ''}
+
+        ${fridgeIsPremium ? `
+        <div style="margin-bottom:16px;position:relative">
+            <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:16px;pointer-events:none">🔍</span>
+            <input type="text" id="fridge-search" class="form-input"
+                placeholder="Szukaj produktu…"
+                value="${searchQuery.replace(/"/g, '&quot;')}"
+                style="padding-left:38px" />
+        </div>
+        ${searchQuery && filteredProducts.length === 0 ? `
+        <div style="text-align:center;padding:32px;color:var(--text-muted);font-size:14px">
+            Brak produktów pasujących do „${searchQuery}"
+        </div>` : ''}
+        ` : `
+        <div style="background:linear-gradient(135deg,#FFFBEB,#FEF3C7);border:1px solid #FDE68A;
+            border-radius:12px;padding:14px 18px;margin-bottom:16px;
+            display:flex;align-items:center;gap:14px">
+            <div style="font-size:26px;flex-shrink:0">🔍</div>
+            <div style="flex:1;min-width:0">
+                <div style="font-weight:700;font-size:13px;margin-bottom:2px">
+                    Wyszukiwanie produktów
+                    <span style="font-size:10px;background:#F59E0B;color:#fff;
+                        padding:1px 7px;border-radius:99px;vertical-align:middle;margin-left:4px">⭐ Premium</span>
+                </div>
+                <p style="font-size:12px;color:var(--text-muted);margin:0;line-height:1.4">
+                    Znajdź każdy produkt błyskawicznie — niezależnie od tego ile masz ich w lodówce.
+                </p>
+            </div>
+            <button class="btn btn--sm" id="btn-fridge-premium-search"
+                style="background:#F59E0B;border:none;color:#fff;font-weight:600;flex-shrink:0;white-space:nowrap">
+                Odblokuj →
+            </button>
+        </div>
+        `}
 
         <div class="zone-grid" id="zone-grid">
             ${zones.map(zone => renderZone(zone, filteredProducts)).join('')}
@@ -129,7 +172,6 @@ function renderProductItem(product) {
         </div>
         <span class="product-item__expiry product-item__expiry--${expiry.cls}" style="flex-shrink:0;margin:0 4px">${expiry.label}</span>
         <div class="product-item__actions">
-            <button class="btn btn--ghost btn--sm btn-edit-product" data-id="${product.id}" title="Edytuj">✏️</button>
             ${!product.opened_at ? `<button class="btn btn--ghost btn--sm btn-open" data-id="${product.id}" title="Oznacz jako otwarte">📂</button>` : ''}
             <button class="btn btn--ghost btn--sm btn-consume" data-id="${product.id}" title="Zużyto">✓</button>
             <button class="btn btn--ghost btn--sm btn-waste" data-id="${product.id}" title="Wyrzuć" style="color:var(--danger)">🗑</button>
@@ -270,6 +312,19 @@ function renderAddProductModal() {
 }
 
 function bindFridgeEvents(container) {
+    const searchInput = container.querySelector('#fridge-search');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            searchQuery = e.target.value;
+            const pos = e.target.selectionStart;
+            render(container);
+            const next = container.querySelector('#fridge-search');
+            if (next) { next.focus(); next.setSelectionRange(pos, pos); }
+        });
+    }
+
+    container.querySelector('#btn-fridge-premium-search')?.addEventListener('click', () => openPremiumModal(false));
+
     container.querySelector('#btn-scan-barcode')?.addEventListener('click', () => openBarcodeScanner());
     container.querySelector('#btn-waste-scan')?.addEventListener('click', () => openWasteScanner());
     container.querySelector('#btn-scan-receipt')?.addEventListener('click', () => openReceiptScanner());
@@ -463,19 +518,25 @@ function bindFridgeEvents(container) {
         }
     });
 
-    container.querySelectorAll('.btn-edit-product').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            editProductId = parseInt(btn.dataset.id);
+    container.querySelectorAll('.product-item').forEach(row => {
+        row.style.cursor = 'pointer';
+        row.addEventListener('click', (e) => {
+            if (e.target.closest('.btn')) return;
+            editProductId = parseInt(row.dataset.productId);
             const p = products.find(x => x.id === editProductId);
             if (!p) return;
+
+            // Dla otwartych produktów data ważności to opened_expiry_date (effective)
+            const effectiveExpiry = p.opened_at
+                ? (p.opened_expiry_date || p.expiry_date)
+                : p.expiry_date;
 
             container.querySelector('#edit-product-id').value = p.id;
             container.querySelector('#edit-name').value        = p.name;
             container.querySelector('#edit-qty').value         = p.quantity ?? 1;
             container.querySelector('#edit-unit').value        = p.unit ?? 'szt';
             container.querySelector('#edit-zone').value        = p.storage_zone_id;
-            container.querySelector('#edit-expiry').value      = p.expiry_date ? p.expiry_date.slice(0, 10) : '';
+            container.querySelector('#edit-expiry').value      = effectiveExpiry ? effectiveExpiry.slice(0, 10) : '';
             container.querySelector('#edit-price').value       = p.price ?? '';
             container.querySelector('#edit-modal-alert').innerHTML = '';
             container.querySelector('#edit-modal-submit').disabled    = false;
@@ -502,28 +563,30 @@ function bindFridgeEvents(container) {
         btn.disabled    = true;
         btn.textContent = 'Zapisywanie…';
 
+        const p        = products.find(x => x.id === editProductId);
+        const isOpened = !!p?.opened_at;
+        const expiryVal = container.querySelector('#edit-expiry').value || null;
+
         const body = {
             name:            container.querySelector('#edit-name').value.trim(),
             quantity:        parseFloat(container.querySelector('#edit-qty').value) || 1,
             unit:            container.querySelector('#edit-unit').value,
             storage_zone_id: parseInt(container.querySelector('#edit-zone').value),
-            expiry_date:     container.querySelector('#edit-expiry').value || null,
             price:           container.querySelector('#edit-price').value
                                  ? parseFloat(container.querySelector('#edit-price').value)
                                  : null,
+            // otwarty produkt: zmieniamy opened_expiry_date (to ona jest "effective")
+            ...(isOpened
+                ? { opened_expiry_date: expiryVal }
+                : { expiry_date: expiryVal }),
         };
 
         try {
             const updated = await api.products.update(editProductId, body);
             const idx = products.findIndex(x => x.id === editProductId);
             if (idx !== -1) {
-                products[idx] = {
-                    ...products[idx],
-                    ...updated,
-                    days_until_expiry: updated.expiry_date
-                        ? Math.floor((new Date(updated.expiry_date) - new Date()) / 86400000)
-                        : null,
-                };
+                // użyj days_until_expiry z serwera — on zna effective_expiry_date
+                products[idx] = { ...products[idx], ...updated };
             }
             closeEditModal();
             render(container);

@@ -59,6 +59,7 @@ function renderFreeContent() {
             ${feat('Własne przepisy (bez limitu)')}
             ${feat('1 odświeżenie przepisów / dzień')}
             ${featNo('10 odświeżeń przepisów / dzień')}
+            ${featNo('Wyszukiwanie produktów w lodówce')}
             ${featNo('Aktualizacje listy zakupów na żywo')}
             ${featNo('Smart sortowanie listy (alejki)')}
             ${featNo('Statystyki i Zero-Waste Score')}
@@ -83,6 +84,7 @@ function renderFreeContent() {
             ${feat('Skanowanie paragonów')}
             ${feat('Własne przepisy (bez limitu)')}
             ${feat('10 odświeżeń przepisów / dzień')}
+            ${feat('Wyszukiwanie produktów w lodówce')}
             ${feat('Aktualizacje listy zakupów na żywo')}
             ${feat('Smart sortowanie listy (alejki)')}
             ${feat('Statystyki i Zero-Waste Score')}
@@ -115,6 +117,7 @@ function renderPremiumContent() {
         ${feat('Skanowanie paragonów')}
         ${feat('Własne przepisy (bez limitu)')}
         ${feat('10 odświeżeń przepisów / dzień')}
+        ${feat('Wyszukiwanie produktów w lodówce')}
         ${feat('Aktualizacje listy zakupów na żywo')}
         ${feat('Smart sortowanie listy (alejki)')}
         ${feat('Statystyki i Zero-Waste Score')}

@@ -62,6 +62,7 @@ class AuthController extends Controller
             ]);
         }
 
+        $user->update(['last_login_at' => now()]);
         $token = $user->createToken('api')->plainTextToken;
 
         return response()->json([

@@ -51,7 +51,6 @@ jobs:
           set net:timeout 60
           set net:reconnect-interval-base 5
           set net:reconnect-interval-multiplier 2
-          set sftp:connect-program 'ssh -a -x -o StrictHostKeyChecking=no'
           open -u '${{ secrets.SFTP_USER }}','${{ secrets.SFTP_PASSWORD }}' sftp://${{ secrets.SFTP_HOST }}
           mirror --reverse --delete --no-perms \
             --exclude-glob .git/ \

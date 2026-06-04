@@ -125,6 +125,14 @@ export async function renderFoodSharing(container) {
 
         <div style="flex:1;position:relative;overflow:hidden;display:flex">
             <div id="fs-map" style="flex:1"></div>
+            <div id="fs-map-loader" style="
+                position:absolute;inset:0;z-index:500;
+                background:var(--surface);
+                display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+                pointer-events:none">
+                <div class="spinner" style="width:36px;height:36px;border-width:3px"></div>
+                <span style="font-size:13px;color:var(--text-muted)">Ładowanie mapy…</span>
+            </div>
 
             <div id="fs-panel" style="
                 display:none;position:absolute;right:0;top:0;bottom:0;
@@ -164,10 +172,18 @@ async function initMap(container) {
     const mapEl = container.querySelector('#fs-map');
     map = L.map(mapEl).setView([myLocation.lat, myLocation.lng], 14);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>',
         maxZoom: 19,
     }).addTo(map);
+
+    const hideLoader = () => {
+        const loader = container.querySelector('#fs-map-loader');
+        if (loader) loader.style.display = 'none';
+    };
+    tileLayer.once('load', hideLoader);
+    // fallback — ukryj po 8s nawet gdy kafelki nie dotarły
+    setTimeout(hideLoader, 8000);
 
     L.circleMarker([myLocation.lat, myLocation.lng], {
         radius: 9, fillColor: '#3b82f6', color: '#fff', weight: 2, fillOpacity: 1,

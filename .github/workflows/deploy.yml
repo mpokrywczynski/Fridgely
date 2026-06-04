@@ -44,35 +44,24 @@ jobs:
           echo "deploy-test-ok" > public/deploy-test.txt
           echo "setup.php + deploy-test.txt generated"
 
-      - name: Deploy via SFTP (lftp)
+      - name: Deploy via rsync
         run: |
-          sudo apt-get install -y lftp -qq
-          lftp -c "
-          set sftp:auto-confirm yes
-          set net:max-retries 5
-          set net:timeout 60
-          set net:reconnect-interval-base 5
-          set net:reconnect-interval-multiplier 2
-          open -u '${{ secrets.SFTP_USER }}','${{ secrets.SFTP_PASSWORD }}' sftp://${{ secrets.SFTP_HOST }}
-          mirror --reverse --delete --no-perms \
-            --exclude-glob .git/ \
-            --exclude-glob .github/ \
-            --exclude-glob node_modules/ \
-            --exclude-glob vendor/ \
-            --exclude-glob .env \
-            --exclude-glob .env.* \
-            --exclude-glob .claude/ \
-            --exclude-glob storage/logs/ \
-            --exclude-glob storage/framework/sessions/ \
-            --exclude-glob storage/framework/cache/ \
-            --exclude-glob storage/framework/views/ \
-            ./ ${{ secrets.SFTP_PATH }}
-          echo '=== public/ on server after mirror ==='
-          ls ${{ secrets.SFTP_PATH }}/public/
-          echo '=== bootstrap/cache/ on server ==='
-          ls ${{ secrets.SFTP_PATH }}/bootstrap/cache/
-          bye
-          "
+          sudo apt-get install -y sshpass -qq
+          rsync -az --delete \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='node_modules' \
+            --exclude='vendor' \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='.claude' \
+            --exclude='storage/logs' \
+            --exclude='storage/framework/sessions' \
+            --exclude='storage/framework/cache' \
+            --exclude='storage/framework/views' \
+            -e "sshpass -p '${{ secrets.SFTP_PASSWORD }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 22" \
+            ./ ${{ secrets.SFTP_USER }}@${{ secrets.SFTP_HOST }}:${{ secrets.SFTP_PATH }}
+          echo "=== rsync done ==="
 
       - name: Run setup.php on server
         run: |

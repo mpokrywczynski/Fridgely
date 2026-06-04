@@ -35,9 +35,6 @@ jobs:
         env:
           NODE_ENV: production
 
-      - name: Prepare archive
-        run: echo "Building deploy archive..."
-
       - name: Create deploy archive
         run: |
           zip -r deploy.zip . \
@@ -53,21 +50,35 @@ jobs:
             -x "storage/framework/cache/*" \
             -x "storage/framework/views/*" \
             -x "deploy.zip"
-          echo "Archive size: $(du -sh deploy.zip | cut -f1)"
+          echo "Archive: $(du -sh deploy.zip | cut -f1)"
 
-      - name: Deploy via HTTP
+      - name: Upload archive to server
         run: |
-          HTTP_CODE=$(curl -s -o /tmp/deploy_response.txt -w "%{http_code}" \
-            --max-time 300 \
+          HTTP_CODE=$(curl -s -o /tmp/recv_response.txt -w "%{http_code}" \
+            --max-time 120 \
             -X POST \
             -H "X-Deploy-Token: ${{ secrets.DEPLOY_SECRET }}" \
             -F "archive=@deploy.zip" \
             "${{ secrets.APP_URL }}/deploy-receiver.php")
-          RESPONSE=$(cat /tmp/deploy_response.txt)
-          echo "HTTP status: $HTTP_CODE"
-          echo "Response: $RESPONSE"
+          RESPONSE=$(cat /tmp/recv_response.txt)
+          echo "HTTP: $HTTP_CODE | $RESPONSE"
           if [ "$HTTP_CODE" != "200" ]; then
-            echo "::error::Deploy failed with HTTP $HTTP_CODE"
+            echo "::error::Upload failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+      - name: Run setup (migrate + cache)
+        run: |
+          HTTP_CODE=$(curl -s -o /tmp/setup_response.txt -w "%{http_code}" \
+            --max-time 120 \
+            -X POST \
+            -H "X-Deploy-Token: ${{ secrets.DEPLOY_SECRET }}" \
+            "${{ secrets.APP_URL }}/setup.php")
+          RESPONSE=$(cat /tmp/setup_response.txt)
+          echo "HTTP: $HTTP_CODE"
+          echo "$RESPONSE"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Setup failed with HTTP $HTTP_CODE"
             exit 1
           fi
           echo "Deploy complete."

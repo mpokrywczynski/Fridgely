@@ -35,73 +35,45 @@ jobs:
         env:
           NODE_ENV: production
 
-      - name: Generate setup.php
+      - name: Prepare deploy-receiver.php
         id: setup
         run: |
           TOKEN=$(openssl rand -hex 32)
           echo "token=$TOKEN" >> $GITHUB_OUTPUT
-          sed "s/%%TOKEN%%/$TOKEN/" .github/setup-template.php > public/setup.php
-          echo "deploy-test-ok" > public/deploy-test.txt
-          echo "setup.php + deploy-test.txt generated"
+          sed "s/%%TOKEN%%/$TOKEN/" public/deploy-receiver.php > /tmp/deploy-receiver-final.php
+          cp /tmp/deploy-receiver-final.php public/deploy-receiver.php
+          echo "deploy-receiver.php token injected"
 
-      - name: Deploy via FTP (lftp)
+      - name: Create deploy archive
         run: |
-          sudo apt-get install -y lftp -qq
-          lftp -c "
-          set ftp:passive-mode yes
-          set ftp:ssl-force yes
-          set ftp:ssl-protect-data yes
-          set ssl:verify-certificate no
-          set net:timeout 30
-          set net:max-retries 3
-          set net:reconnect-interval-base 5
-          open -u '${{ secrets.FTP_USERNAME }}','${{ secrets.FTP_PASSWORD }}' ftp://${{ secrets.FTP_SERVER }}
-          mirror --reverse --delete --no-perms \
-            --exclude-glob .git/ \
-            --exclude-glob .github/ \
-            --exclude-glob node_modules/ \
-            --exclude-glob vendor/ \
-            --exclude-glob .env \
-            --exclude-glob .env.* \
-            --exclude-glob .claude/ \
-            --exclude-glob storage/logs/ \
-            --exclude-glob storage/framework/sessions/ \
-            --exclude-glob storage/framework/cache/ \
-            --exclude-glob storage/framework/views/ \
-            ./ ${{ secrets.SFTP_PATH }}/
-          bye
-          "
+          zip -r deploy.zip . \
+            -x ".git/*" \
+            -x ".github/*" \
+            -x "node_modules/*" \
+            -x "vendor/*" \
+            -x ".env" \
+            -x ".env.*" \
+            -x ".claude/*" \
+            -x "storage/logs/*" \
+            -x "storage/framework/sessions/*" \
+            -x "storage/framework/cache/*" \
+            -x "storage/framework/views/*" \
+            -x "deploy.zip"
+          echo "Archive size: $(du -sh deploy.zip | cut -f1)"
 
-      - name: Run setup.php on server
+      - name: Deploy via HTTP
         run: |
-          echo "=== Step 1: Check deploy-test.txt (confirms upload + web server) ==="
-          TXT_CODE=$(curl -s -o /tmp/txt_response.txt -w "%{http_code}" --max-time 30 \
-            "${{ secrets.APP_URL }}/deploy-test.txt")
-          echo "deploy-test.txt HTTP status: $TXT_CODE"
-          echo "deploy-test.txt content: $(cat /tmp/txt_response.txt)"
-
-          echo ""
-          echo "=== Step 2: Check if setup.php exists (HEAD request) ==="
-          HEAD_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 -I \
-            "${{ secrets.APP_URL }}/setup.php")
-          echo "setup.php HEAD status: $HEAD_CODE"
-
-          echo ""
-          echo "=== Step 3: Trigger setup.php ==="
-          HTTP_CODE=$(curl -s -o /tmp/setup_response.txt -w "%{http_code}" \
-            --max-time 90 -v \
-            "${{ secrets.APP_URL }}/setup.php?token=${{ steps.setup.outputs.token }}" 2>&1 | tee /tmp/setup_verbose.txt | tail -1)
-          HTTP_CODE=$(curl -s -o /tmp/setup_response.txt -w "%{http_code}" --max-time 90 \
-            "${{ secrets.APP_URL }}/setup.php?token=${{ steps.setup.outputs.token }}")
-          RESPONSE=$(cat /tmp/setup_response.txt)
+          HTTP_CODE=$(curl -s -o /tmp/deploy_response.txt -w "%{http_code}" \
+            --max-time 300 \
+            -X POST \
+            -H "X-Deploy-Token: ${{ steps.setup.outputs.token }}" \
+            -F "archive=@deploy.zip" \
+            "${{ secrets.APP_URL }}/deploy-receiver.php")
+          RESPONSE=$(cat /tmp/deploy_response.txt)
           echo "HTTP status: $HTTP_CODE"
           echo "Response: $RESPONSE"
-
-          if [ "$TXT_CODE" != "200" ]; then
-            echo "::warning::deploy-test.txt not found (HTTP $TXT_CODE) - upload may have failed or APP_URL is wrong"
-          fi
           if [ "$HTTP_CODE" != "200" ]; then
-            echo "::error::Setup failed with HTTP $HTTP_CODE"
+            echo "::error::Deploy failed with HTTP $HTTP_CODE"
             exit 1
           fi
           echo "Deploy complete."

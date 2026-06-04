@@ -44,24 +44,27 @@ jobs:
           echo "deploy-test-ok" > public/deploy-test.txt
           echo "setup.php + deploy-test.txt generated"
 
-      - name: Deploy via rsync
-        run: |
-          sudo apt-get install -y sshpass -qq
-          rsync -az --delete \
-            --exclude='.git' \
-            --exclude='.github' \
-            --exclude='node_modules' \
-            --exclude='vendor' \
-            --exclude='.env' \
-            --exclude='.env.*' \
-            --exclude='.claude' \
-            --exclude='storage/logs' \
-            --exclude='storage/framework/sessions' \
-            --exclude='storage/framework/cache' \
-            --exclude='storage/framework/views' \
-            -e "sshpass -p '${{ secrets.SFTP_PASSWORD }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 22" \
-            ./ ${{ secrets.SFTP_USER }}@${{ secrets.SFTP_HOST }}:${{ secrets.SFTP_PATH }}
-          echo "=== rsync done ==="
+      - name: Deploy via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./
+          server-dir: ${{ secrets.SFTP_PATH }}
+          exclude: |
+            **/.git*
+            **/.git*/**
+            .github/**
+            node_modules/**
+            vendor/**
+            .env
+            .env.*
+            .claude/**
+            storage/logs/**
+            storage/framework/sessions/**
+            storage/framework/cache/**
+            storage/framework/views/**
 
       - name: Run setup.php on server
         run: |

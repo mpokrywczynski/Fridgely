@@ -44,30 +44,33 @@ jobs:
           echo "deploy-test-ok" > public/deploy-test.txt
           echo "setup.php + deploy-test.txt generated"
 
-      - name: Deploy via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./
-          server-dir: ${{ secrets.SFTP_PATH }}/
-          security: loose
-          timeout: 60000
-          log-level: verbose
-          exclude: |
-            **/.git*
-            **/.git*/**
-            .github/**
-            node_modules/**
-            vendor/**
-            .env
-            .env.*
-            .claude/**
-            storage/logs/**
-            storage/framework/sessions/**
-            storage/framework/cache/**
-            storage/framework/views/**
+      - name: Deploy via FTP (lftp)
+        run: |
+          sudo apt-get install -y lftp -qq
+          lftp -c "
+          set ftp:passive-mode yes
+          set ftp:ssl-force yes
+          set ftp:ssl-protect-data yes
+          set ssl:verify-certificate no
+          set net:timeout 30
+          set net:max-retries 3
+          set net:reconnect-interval-base 5
+          open -u '${{ secrets.FTP_USERNAME }}','${{ secrets.FTP_PASSWORD }}' ftp://${{ secrets.FTP_SERVER }}
+          mirror --reverse --delete --no-perms \
+            --exclude-glob .git/ \
+            --exclude-glob .github/ \
+            --exclude-glob node_modules/ \
+            --exclude-glob vendor/ \
+            --exclude-glob .env \
+            --exclude-glob .env.* \
+            --exclude-glob .claude/ \
+            --exclude-glob storage/logs/ \
+            --exclude-glob storage/framework/sessions/ \
+            --exclude-glob storage/framework/cache/ \
+            --exclude-glob storage/framework/views/ \
+            ./ ${{ secrets.SFTP_PATH }}/
+          bye
+          "
 
       - name: Run setup.php on server
         run: |

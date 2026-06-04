@@ -36,9 +36,10 @@ jobs:
           NODE_ENV: production
 
       - name: Generate setup.php
+        id: setup
         run: |
           TOKEN=$(openssl rand -hex 32)
-          echo "SETUP_TOKEN=$TOKEN" >> $GITHUB_ENV
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
           sed "s/%%TOKEN%%/$TOKEN/" .github/setup-template.php > public/setup.php
           echo "setup.php generated"
 
@@ -65,6 +66,10 @@ jobs:
             --exclude-glob storage/framework/cache/ \
             --exclude-glob storage/framework/views/ \
             ./ ${{ secrets.SFTP_PATH }}
+          echo '=== public/ on server after mirror ==='
+          ls ${{ secrets.SFTP_PATH }}/public/
+          echo '=== bootstrap/cache/ on server ==='
+          ls ${{ secrets.SFTP_PATH }}/bootstrap/cache/
           bye
           "
 
@@ -72,7 +77,7 @@ jobs:
         run: |
           echo "Triggering setup..."
           HTTP_CODE=$(curl -s -o /tmp/setup_response.txt -w "%{http_code}" --max-time 90 \
-            "${{ secrets.APP_URL }}/setup.php?token=${{ env.SETUP_TOKEN }}")
+            "${{ secrets.APP_URL }}/setup.php?token=${{ steps.setup.outputs.token }}")
           RESPONSE=$(cat /tmp/setup_response.txt)
           echo "HTTP status: $HTTP_CODE"
           echo "Response: $RESPONSE"

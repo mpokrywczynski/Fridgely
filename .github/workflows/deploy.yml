@@ -35,14 +35,8 @@ jobs:
         env:
           NODE_ENV: production
 
-      - name: Prepare deploy-receiver.php
-        id: setup
-        run: |
-          TOKEN=$(openssl rand -hex 32)
-          echo "token=$TOKEN" >> $GITHUB_OUTPUT
-          sed "s/%%TOKEN%%/$TOKEN/" public/deploy-receiver.php > /tmp/deploy-receiver-final.php
-          cp /tmp/deploy-receiver-final.php public/deploy-receiver.php
-          echo "deploy-receiver.php token injected"
+      - name: Prepare archive
+        run: echo "Building deploy archive..."
 
       - name: Create deploy archive
         run: |
@@ -66,7 +60,7 @@ jobs:
           HTTP_CODE=$(curl -s -o /tmp/deploy_response.txt -w "%{http_code}" \
             --max-time 300 \
             -X POST \
-            -H "X-Deploy-Token: ${{ steps.setup.outputs.token }}" \
+            -H "X-Deploy-Token: ${{ secrets.DEPLOY_SECRET }}" \
             -F "archive=@deploy.zip" \
             "${{ secrets.APP_URL }}/deploy-receiver.php")
           RESPONSE=$(cat /tmp/deploy_response.txt)

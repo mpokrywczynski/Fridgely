@@ -1,5 +1,11 @@
 <?php
-if (($_SERVER['HTTP_X_DEPLOY_TOKEN'] ?? '') !== '%%TOKEN%%') {
+$root   = dirname(__DIR__);
+$secret = '';
+if (file_exists($root . '/.env')) {
+    preg_match('/^DEPLOY_SECRET=(.+)$/m', file_get_contents($root . '/.env'), $m);
+    $secret = trim($m[1] ?? '');
+}
+if (!$secret || ($_SERVER['HTTP_X_DEPLOY_TOKEN'] ?? '') !== $secret) {
     http_response_code(403);
     die('Forbidden');
 }
@@ -8,8 +14,7 @@ set_time_limit(300);
 ini_set('memory_limit', '256M');
 header('Content-Type: text/plain');
 
-$root = dirname(__DIR__);
-$out  = [];
+$out = [];
 
 // ── Extract ZIP ───────────────────────────────────────────────
 $upload = $_FILES['archive'] ?? null;

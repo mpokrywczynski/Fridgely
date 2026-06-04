@@ -52,18 +52,25 @@ jobs:
             -x "deploy.zip"
           echo "Archive: $(du -sh deploy.zip | cut -f1)"
 
-      - name: Upload archive to server
+      - name: Upload archive to transfer.sh
+        id: upload
+        run: |
+          DOWNLOAD_URL=$(curl -s --upload-file deploy.zip https://transfer.sh/deploy.zip)
+          echo "Download URL: $DOWNLOAD_URL"
+          echo "url=$DOWNLOAD_URL" >> $GITHUB_OUTPUT
+
+      - name: Trigger server to download & extract
         run: |
           HTTP_CODE=$(curl -s -o /tmp/recv_response.txt -w "%{http_code}" \
             --max-time 120 \
             -X POST \
             -H "X-Deploy-Token: ${{ secrets.DEPLOY_SECRET }}" \
-            -F "archive=@deploy.zip" \
+            --data-urlencode "url=${{ steps.upload.outputs.url }}" \
             "${{ secrets.APP_URL }}/deploy-receiver.php")
           RESPONSE=$(cat /tmp/recv_response.txt)
           echo "HTTP: $HTTP_CODE | $RESPONSE"
           if [ "$HTTP_CODE" != "200" ]; then
-            echo "::error::Upload failed with HTTP $HTTP_CODE"
+            echo "::error::Receiver failed with HTTP $HTTP_CODE"
             exit 1
           fi
 

@@ -10,20 +10,33 @@ if (!$secret || ($_SERVER['HTTP_X_DEPLOY_TOKEN'] ?? '') !== $secret) {
     die('Forbidden');
 }
 
-header('Content-Type: text/plain');
-
-$upload = $_FILES['archive'] ?? null;
-if (!$upload || $upload['error'] !== UPLOAD_ERR_OK) {
+$url = $_POST['url'] ?? '';
+if (!$url || !filter_var($url, FILTER_VALIDATE_URL)) {
     http_response_code(400);
-    die('Upload error: ' . ($upload['error'] ?? 'no file'));
+    die('Missing or invalid url');
 }
 
+header('Content-Type: text/plain');
+set_time_limit(120);
+
+// Download ZIP from the temporary URL
 $zipPath = sys_get_temp_dir() . '/deploy_' . time() . '.zip';
-if (!move_uploaded_file($upload['tmp_name'], $zipPath)) {
-    http_response_code(500);
-    die('Cannot save uploaded file');
-}
+$ch = curl_init($url);
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+$data = curl_exec($ch);
+$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
 
+if (!$data || $httpCode !== 200) {
+    http_response_code(500);
+    die("Failed to download archive (HTTP $httpCode)");
+}
+file_put_contents($zipPath, $data);
+echo "downloaded\n";
+
+// Extract ZIP
 $zip = new ZipArchive();
 if ($zip->open($zipPath) !== true) {
     http_response_code(500);
@@ -32,4 +45,4 @@ if ($zip->open($zipPath) !== true) {
 $zip->extractTo($root);
 $zip->close();
 unlink($zipPath);
-echo "archive extracted\n";
+echo "extracted\n";

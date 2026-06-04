@@ -52,12 +52,17 @@ jobs:
             -x "deploy.zip"
           echo "Archive: $(du -sh deploy.zip | cut -f1)"
 
-      - name: Upload archive to transfer.sh
-        id: upload
+      - name: Upload archive to GitHub Release
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          DOWNLOAD_URL=$(curl -s --upload-file deploy.zip https://transfer.sh/deploy.zip)
-          echo "Download URL: $DOWNLOAD_URL"
-          echo "url=$DOWNLOAD_URL" >> $GITHUB_OUTPUT
+          TAG="deploy-$(date +%Y%m%d%H%M%S)"
+          gh release create "$TAG" deploy.zip \
+            --title "$TAG" \
+            --notes "Temporary deploy archive" \
+            --prerelease
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Trigger server to download & extract
         run: |
@@ -65,10 +70,13 @@ jobs:
             --max-time 120 \
             -X POST \
             -H "X-Deploy-Token: ${{ secrets.DEPLOY_SECRET }}" \
-            --data-urlencode "url=${{ steps.upload.outputs.url }}" \
+            -H "X-GH-Token: ${{ secrets.GITHUB_TOKEN }}" \
+            --data-urlencode "repo=${{ github.repository }}" \
+            --data-urlencode "tag=${{ steps.release.outputs.tag }}" \
             "${{ secrets.APP_URL }}/deploy-receiver.php")
           RESPONSE=$(cat /tmp/recv_response.txt)
-          echo "HTTP: $HTTP_CODE | $RESPONSE"
+          echo "HTTP: $HTTP_CODE"
+          echo "$RESPONSE"
           if [ "$HTTP_CODE" != "200" ]; then
             echo "::error::Receiver failed with HTTP $HTTP_CODE"
             exit 1
@@ -89,3 +97,10 @@ jobs:
             exit 1
           fi
           echo "Deploy complete."
+
+      - name: Delete temporary release
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete "${{ steps.release.outputs.tag }}" --yes --cleanup-tag 2>/dev/null || true

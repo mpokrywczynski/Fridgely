@@ -10,33 +10,68 @@ if (!$secret || ($_SERVER['HTTP_X_DEPLOY_TOKEN'] ?? '') !== $secret) {
     die('Forbidden');
 }
 
-$url = $_POST['url'] ?? '';
-if (!$url || !filter_var($url, FILTER_VALIDATE_URL)) {
+$ghToken = $_SERVER['HTTP_X_GH_TOKEN'] ?? '';
+$repo    = trim($_POST['repo'] ?? '');
+$tag     = trim($_POST['tag'] ?? '');
+
+if (!$ghToken || !$repo || !$tag) {
     http_response_code(400);
-    die('Missing or invalid url');
+    die('Missing parameters');
 }
 
 header('Content-Type: text/plain');
 set_time_limit(120);
 
-// Download ZIP from the temporary URL
-$zipPath = sys_get_temp_dir() . '/deploy_' . time() . '.zip';
-$ch = curl_init($url);
-curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_TIMEOUT, 60);
-$data = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+// ── Get release asset ID via GitHub API ───────────────────────
+$ch = curl_init("https://api.github.com/repos/$repo/releases/tags/$tag");
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER     => [
+        "Authorization: Bearer $ghToken",
+        "Accept: application/vnd.github+json",
+        "User-Agent: deploy-receiver",
+        "X-GitHub-Api-Version: 2022-11-28",
+    ],
+    CURLOPT_TIMEOUT => 15,
+]);
+$body    = curl_exec($ch);
+$apiCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
-if (!$data || $httpCode !== 200) {
+$release = json_decode($body, true);
+$assetId = $release['assets'][0]['id'] ?? null;
+if (!$assetId) {
     http_response_code(500);
-    die("Failed to download archive (HTTP $httpCode)");
+    die("Release asset not found (API HTTP $apiCode)");
 }
-file_put_contents($zipPath, $data);
+echo "asset_id: $assetId\n";
+
+// ── Download asset ────────────────────────────────────────────
+$zipPath = sys_get_temp_dir() . '/deploy_' . time() . '.zip';
+$fh      = fopen($zipPath, 'wb');
+$ch      = curl_init("https://api.github.com/repos/$repo/releases/assets/$assetId");
+curl_setopt_array($ch, [
+    CURLOPT_FILE           => $fh,
+    CURLOPT_FOLLOWLOCATION => true,
+    CURLOPT_HTTPHEADER     => [
+        "Authorization: Bearer $ghToken",
+        "Accept: application/octet-stream",
+        "User-Agent: deploy-receiver",
+    ],
+    CURLOPT_TIMEOUT => 60,
+]);
+curl_exec($ch);
+$dlCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+fclose($fh);
+
+if ($dlCode !== 200) {
+    http_response_code(500);
+    die("Download failed (HTTP $dlCode)");
+}
 echo "downloaded\n";
 
-// Extract ZIP
+// ── Extract ZIP ───────────────────────────────────────────────
 $zip = new ZipArchive();
 if ($zip->open($zipPath) !== true) {
     http_response_code(500);

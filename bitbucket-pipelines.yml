@@ -1,0 +1,89 @@
+image: php:8.2-cli
+
+pipelines:
+  branches:
+    main:
+      - step:
+          name: Build & Deploy
+          caches:
+            - composer
+          script:
+            # System deps
+            - apt-get update -qq && apt-get install -y -qq zip unzip curl lftp
+
+            # Node.js 20
+            - curl -fsSL https://deb.nodesource.com/setup_20.x | bash - > /dev/null
+            - apt-get install -y -qq nodejs
+
+            # PHP deps
+            - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+            - composer install --no-dev --optimize-autoloader --no-interaction
+
+            # JS build
+            - npm ci
+            - NODE_ENV=production npm run build
+
+            # Generate setup.php (reads DEPLOY_SECRET from server .env)
+            - |
+              cat > public/setup.php << 'PHP'
+              <?php
+              $root = dirname(__DIR__);
+              $secret = '';
+              if (file_exists($root . '/.env')) {
+                  preg_match('/^DEPLOY_SECRET=(.+)$/m', file_get_contents($root . '/.env'), $m);
+                  $secret = trim($m[1] ?? '');
+              }
+              if (!$secret || ($_SERVER['HTTP_X_DEPLOY_TOKEN'] ?? '') !== $secret) {
+                  http_response_code(403);
+                  die('Forbidden');
+              }
+              set_time_limit(120);
+              header('Content-Type: text/plain');
+              $out = [];
+              define('LARAVEL_START', microtime(true));
+              require $root . '/vendor/autoload.php';
+              $app    = require_once $root . '/bootstrap/app.php';
+              $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+              $kernel->bootstrap();
+              \Artisan::call('migrate', ['--force' => true]);
+              $out[] = 'migrate: ' . trim(\Artisan::output());
+              \Artisan::call('config:cache');
+              $out[] = 'config:cache: OK';
+              \Artisan::call('route:cache');
+              $out[] = 'route:cache: OK';
+              \Artisan::call('view:cache');
+              $out[] = 'view:cache: OK';
+              @unlink(__FILE__);
+              $out[] = '[setup.php deleted]';
+              echo implode("\n", $out) . "\n";
+              PHP
+
+            # Deploy via FTP
+            - >
+              lftp -c "
+              set ftp:passive-mode yes;
+              set ftp:ssl-force yes;
+              set ssl:verify-certificate no;
+              set net:timeout 30;
+              set net:max-retries 3;
+              open -u '$FTP_USERNAME','$FTP_PASSWORD' ftp://$FTP_SERVER;
+              mirror --reverse --delete --no-perms
+                --exclude-glob .git/
+                --exclude-glob .bitbucket/
+                --exclude-glob node_modules/
+                --exclude-glob vendor/
+                --exclude-glob .env
+                --exclude-glob .env.*
+                --exclude-glob .claude/
+                --exclude-glob storage/logs/
+                --exclude-glob storage/framework/sessions/
+                --exclude-glob storage/framework/cache/
+                --exclude-glob storage/framework/views/
+                ./ $FTP_PATH/;
+              bye"
+
+            # Run artisan via HTTP
+            - HTTP_CODE=$(curl -s -o /tmp/setup_out.txt -w "%{http_code}" --max-time 120 -X POST -H "X-Deploy-Token:$DEPLOY_SECRET" "$APP_URL/setup.php")
+            - cat /tmp/setup_out.txt
+            - if [ "$HTTP_CODE" != "200" ]; then echo "Setup failed HTTP $HTTP_CODE"; exit 1; fi
+            - echo "Deploy complete."

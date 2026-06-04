@@ -41,7 +41,8 @@ jobs:
           TOKEN=$(openssl rand -hex 32)
           echo "token=$TOKEN" >> $GITHUB_OUTPUT
           sed "s/%%TOKEN%%/$TOKEN/" .github/setup-template.php > public/setup.php
-          echo "setup.php generated"
+          echo "deploy-test-ok" > public/deploy-test.txt
+          echo "setup.php + deploy-test.txt generated"
 
       - name: Deploy via SFTP (lftp)
         run: |
@@ -75,12 +76,32 @@ jobs:
 
       - name: Run setup.php on server
         run: |
-          echo "Triggering setup..."
+          echo "=== Step 1: Check deploy-test.txt (confirms upload + web server) ==="
+          TXT_CODE=$(curl -s -o /tmp/txt_response.txt -w "%{http_code}" --max-time 30 \
+            "${{ secrets.APP_URL }}/deploy-test.txt")
+          echo "deploy-test.txt HTTP status: $TXT_CODE"
+          echo "deploy-test.txt content: $(cat /tmp/txt_response.txt)"
+
+          echo ""
+          echo "=== Step 2: Check if setup.php exists (HEAD request) ==="
+          HEAD_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 -I \
+            "${{ secrets.APP_URL }}/setup.php")
+          echo "setup.php HEAD status: $HEAD_CODE"
+
+          echo ""
+          echo "=== Step 3: Trigger setup.php ==="
+          HTTP_CODE=$(curl -s -o /tmp/setup_response.txt -w "%{http_code}" \
+            --max-time 90 -v \
+            "${{ secrets.APP_URL }}/setup.php?token=${{ steps.setup.outputs.token }}" 2>&1 | tee /tmp/setup_verbose.txt | tail -1)
           HTTP_CODE=$(curl -s -o /tmp/setup_response.txt -w "%{http_code}" --max-time 90 \
             "${{ secrets.APP_URL }}/setup.php?token=${{ steps.setup.outputs.token }}")
           RESPONSE=$(cat /tmp/setup_response.txt)
           echo "HTTP status: $HTTP_CODE"
           echo "Response: $RESPONSE"
+
+          if [ "$TXT_CODE" != "200" ]; then
+            echo "::warning::deploy-test.txt not found (HTTP $TXT_CODE) - upload may have failed or APP_URL is wrong"
+          fi
           if [ "$HTTP_CODE" != "200" ]; then
             echo "::error::Setup failed with HTTP $HTTP_CODE"
             exit 1

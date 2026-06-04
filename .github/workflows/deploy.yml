@@ -52,6 +52,9 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./
           server-dir: ${{ secrets.SFTP_PATH }}/
+          security: loose
+          timeout: 60000
+          log-level: verbose
           exclude: |
             **/.git*
             **/.git*/**
